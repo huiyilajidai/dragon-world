@@ -59,6 +59,13 @@ const App = {
         document.getElementById('temperature-value').textContent = e.target.value;
       });
     }
+
+    // 窗口大小变化时关闭抽屉
+    window.addEventListener('resize', () => {
+      if (window.innerWidth > 768) {
+        this.closeAllDrawers();
+      }
+    });
   },
 
   // 页面切换
@@ -367,6 +374,11 @@ const App = {
       return;
     }
 
+    // 记录渲染前的内容高度（即新内容的起始位置）
+    const prevScrollHeight = area.scrollHeight;
+    const prevScrollTop = area.scrollTop;
+    const isAtBottom = (area.scrollHeight - area.scrollTop - area.clientHeight) < 50;
+
     area.innerHTML = narrative.map(entry => {
       if (entry.type === 'system') {
         return `<div class="narrative-entry system">${this.escapeHtml(entry.content)}</div>`;
@@ -376,8 +388,22 @@ const App = {
       return `<div class="narrative-entry ${entry.type === 'dialogue' ? 'dialogue' : ''}">${timeTag}<div class="content">${speaker}${this.formatText(entry.content)}</div></div>`;
     }).join('');
 
-    // 滚动到底部
-    area.scrollTop = area.scrollHeight;
+    // 滚动到新内容的开头（而不是直接跳到末尾）
+    // 如果用户之前在底部，滚动到新内容开头
+    // 如果用户在查看历史，保持当前位置
+    if (isAtBottom || this._forceScrollToNew) {
+      // 使用requestAnimationFrame确保DOM更新后再滚动
+      requestAnimationFrame(() => {
+        area.scrollTo({
+          top: prevScrollHeight > 0 ? prevScrollHeight - 10 : 0,
+          behavior: 'smooth'
+        });
+      });
+      this._forceScrollToNew = false;
+    } else {
+      // 用户在查看历史，保持当前位置
+      area.scrollTop = prevScrollTop;
+    }
   },
 
   formatText(text) {
@@ -507,6 +533,9 @@ const App = {
     // 显示玩家行动
     GameState.addNarrative('player', action, '你');
     input.value = '';
+    
+    // 设置标志：行动后生成的新内容滚动到新文本开头
+    this._forceScrollToNew = true;
     this.renderNarrative();
 
     this.setGenerating(true);
@@ -625,24 +654,77 @@ const App = {
     };
 
     const tab = tabMap[cmd];
+    const isMobile = window.innerWidth <= 768;
+    
+    // 状态 - 手机端展开左侧抽屉，电脑端在剧情区显示
+    if (cmd === '状态') {
+      if (isMobile) {
+        this.openLeftDrawer();
+      } else {
+        const p = GameState.state.player;
+        const w = GameState.state.world;
+        const info = `【当前状态】\n姓名：${p.name}\n身份：${p.identityDescription}\n血统：${p.bloodline.tier}级\n言灵：${p.yanling || '未觉醒'}\n健康：${p.health}/100 精神：${p.mental}/100 体力：${p.stamina}/100\n时间：${w.currentTime}\n地点：${w.currentLocation}\n蝴蝶效应：${w.butterflyLevel}\n暴露度：${w.exposureLevel}`;
+        GameState.addNarrative('system', info);
+        this.renderNarrative();
+      }
+      return;
+    }
+    
+    // 其他 - 手机端展开右侧抽屉，电脑端只切换标签
     if (tab) {
       this.switchTab(tab);
+      if (isMobile) {
+        this.openRightDrawer();
+      }
+      return;
     }
 
-    // 状态查询直接显示
-    if (cmd === '状态') {
-      const p = GameState.state.player;
-      const w = GameState.state.world;
-      const info = `【当前状态】\n姓名：${p.name}\n身份：${p.identityDescription}\n血统：${p.bloodline.tier}级\n言灵：${p.yanling || '未觉醒'}\n健康：${p.health}/100 精神：${p.mental}/100 体力：${p.stamina}/100\n时间：${w.currentTime}\n地点：${w.currentLocation}\n蝴蝶效应：${w.butterflyLevel}\n暴露度：${w.exposureLevel}`;
-      GameState.addNarrative('system', info);
-      this.renderNarrative();
-    }
-
+    // 调试信息直接显示
     if (cmd === '调试信息') {
       const info = `【调试信息】\n回合数：${GameState.state.meta.turnCount}\n叙述记录：${GameState.state.narrative.length}条\n任务：${GameState.state.quests.length}个\n线索：${GameState.state.clues.length}条\nNPC：${Object.keys(GameState.state.npcs).length}个\n关系：${GameState.state.relations.length}条\n伏笔：${GameState.state.threads.length}个\nAPI模型：${GameState.state.settings.model}`;
       GameState.addNarrative('system', info);
       this.renderNarrative();
     }
+  },
+
+  // ========== 浮动抽屉 ==========
+  openLeftDrawer() {
+    const leftPanel = document.getElementById('left-panel');
+    const overlay = document.getElementById('drawer-overlay');
+    const rightPanel = document.getElementById('right-panel');
+    if (rightPanel) rightPanel.classList.remove('open');
+    if (leftPanel) leftPanel.classList.add('open');
+    if (overlay) overlay.classList.add('show');
+    this.updateQuickBtnActive('状态');
+  },
+
+  openRightDrawer() {
+    const rightPanel = document.getElementById('right-panel');
+    const overlay = document.getElementById('drawer-overlay');
+    const leftPanel = document.getElementById('left-panel');
+    if (leftPanel) leftPanel.classList.remove('open');
+    if (rightPanel) rightPanel.classList.add('open');
+    if (overlay) overlay.classList.add('show');
+  },
+
+  closeAllDrawers() {
+    const leftPanel = document.getElementById('left-panel');
+    const rightPanel = document.getElementById('right-panel');
+    const overlay = document.getElementById('drawer-overlay');
+    if (leftPanel) leftPanel.classList.remove('open');
+    if (rightPanel) rightPanel.classList.remove('open');
+    if (overlay) overlay.classList.remove('show');
+    this.updateQuickBtnActive(null);
+  },
+
+  updateQuickBtnActive(activeCmd) {
+    document.querySelectorAll('.quick-btn').forEach(btn => {
+      if (activeCmd && btn.textContent.trim() === activeCmd) {
+        btn.classList.add('active');
+      } else {
+        btn.classList.remove('active');
+      }
+    });
   },
 
   // ========== 右侧面板 ==========
@@ -864,17 +946,71 @@ const App = {
 
   copySaveCode() {
     const text = document.getElementById('save-code-text').value;
-    if (text) {
+    if (!text) {
+      this.toast('请先生成续玩码', 'error');
+      return;
+    }
+
+    // 方案1：navigator.clipboard API（需要HTTPS）
+    if (navigator.clipboard && window.isSecureContext) {
       navigator.clipboard.writeText(text).then(() => {
         this.toast('续玩码已复制到剪贴板', 'success');
       }).catch(() => {
-        // 兜底
-        const textarea = document.getElementById('save-code-text');
-        textarea.select();
-        document.execCommand('copy');
-        this.toast('续玩码已复制', 'success');
+        this.fallbackCopy(text);
       });
+      return;
     }
+
+    // 方案2：兜底复制
+    this.fallbackCopy(text);
+  },
+
+  fallbackCopy(text) {
+    try {
+      // 创建临时textarea，确保可见且在视口内
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      textarea.style.top = '0';
+      textarea.style.left = '0';
+      textarea.style.width = '100%';
+      textarea.style.height = 'auto';
+      textarea.style.padding = '10px';
+      textarea.style.border = 'none';
+      textarea.style.background = 'transparent';
+      textarea.style.color = 'transparent';
+      textarea.style.zIndex = '9999';
+      textarea.setAttribute('readonly', '');
+      document.body.appendChild(textarea);
+
+      // 选中内容
+      textarea.focus();
+      textarea.select();
+      textarea.setSelectionRange(0, text.length);
+
+      // 执行复制
+      const successful = document.execCommand('copy');
+      document.body.removeChild(textarea);
+
+      if (successful) {
+        this.toast('续玩码已复制', 'success');
+      } else {
+        this.manualCopyHint(text);
+      }
+    } catch (e) {
+      this.manualCopyHint(text);
+    }
+  },
+
+  manualCopyHint(text) {
+    // 所有自动复制方法都失败，提示用户手动复制
+    const textarea = document.getElementById('save-code-text');
+    if (textarea) {
+      textarea.focus();
+      textarea.select();
+      textarea.setSelectionRange(0, text.length);
+    }
+    this.toast('自动复制失败，请长按文本框手动复制', 'error');
   },
 
   showLoadCodeInput() {
