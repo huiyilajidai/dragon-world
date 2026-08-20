@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#e0b45a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="龙族世界">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icons/icon.svg">
+  <title>龙族世界模拟器</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="app">
+    <!-- 登录页 -->
+    <div id="login-page" class="page active">
+      <div class="login-container">
+        <div class="login-box">
+          <h1 class="login-title">龙族世界模拟器</h1>
+          <p class="login-subtitle">请回答问题进入游戏</p>
+          <div class="login-form">
+            <div class="form-group">
+              <label style="font-size:16px;font-weight:bold;color:var(--title-gold);">问题：马义航是不是你爸爸？</label>
+              <input type="text" id="login-answer" placeholder="请输入答案" onkeydown="if(event.key==='Enter')App.doLogin()" style="text-align:center;font-size:16px;">
+            </div>
+            <button class="btn btn-primary btn-block" onclick="App.doLogin()">进 入</button>
+            <p class="login-hint">提示：答案只有一个字</p>
+            <p class="login-error" id="login-error" style="display:none;color:var(--title-coral);text-align:center;font-size:13px;"></p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 首页 -->
+    <div id="home-page" class="page">
+      <div class="home-container">
+        <div class="home-hero">
+          <h1 class="home-title">龙族世界模拟器</h1>
+          <p class="home-subtitle">一个不断变化的龙族世界 · 你的每个选择都在改写历史</p>
+        </div>
+        <div class="home-buttons">
+          <button class="btn btn-primary" onclick="App.startNewGame()">开始新游戏</button>
+          <button class="btn btn-secondary" onclick="App.continueGame()" id="continue-btn">继续游戏</button>
+          <button class="btn btn-outline" onclick="App.showSaveManager()">存档管理</button>
+          <button class="btn btn-outline" onclick="App.showSettings()">设置</button>
+          <button class="btn btn-outline" onclick="App.logout()" style="border-color:var(--border-coral);color:var(--title-coral);">退出登录</button>
+        </div>
+        <div class="home-footer">
+          <p>原著只是这个世界在你出现之前，原本可能抵达的未来。</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 角色创建页 -->
+    <div id="create-page" class="page">
+      <div class="create-container">
+        <h2 class="create-title">角色创建</h2>
+        <div class="create-progress">
+          <div class="progress-step active" data-step="1">正典模式</div>
+          <div class="progress-step" data-step="2">身份</div>
+          <div class="progress-step" data-step="3">基础信息</div>
+          <div class="progress-step" data-step="4">血统能力</div>
+          <div class="progress-step" data-step="5">确认</div>
+        </div>
+
+        <!-- 步骤1：正典模式 -->
+        <div class="create-step active" data-step="1">
+          <h3>选择正典模式</h3>
+          <div class="option-cards">
+            <div class="option-card selected" data-canon="CANON-R" onclick="App.selectCanon('CANON-R', this)">
+              <h4>修订/重启主线</h4>
+              <p class="tag">推荐</p>
+              <p>采用龙族Ⅰ-Ⅲ修订体系，后续优先《龙王：世界的重启》路线</p>
+            </div>
+            <div class="option-card" data-canon="CANON-O" onclick="App.selectCanon('CANON-O', this)">
+              <h4>旧版连续线</h4>
+              <p>旧版Ⅰ-Ⅳ及旧V逻辑，不注入重启版内容</p>
+            </div>
+            <div class="option-card" data-canon="CANON-H" onclick="App.selectCanon('CANON-H', this)">
+              <h4>混合世界</h4>
+              <p>自定义融合各版本设定，逐项记录来源</p>
+            </div>
+            <div class="option-card" data-canon="CANON-C" onclick="App.selectCanon('CANON-C', this)">
+              <h4>自定义</h4>
+              <p>完全自定义世界线，指定哪些作品和设定有效</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 步骤2：身份 -->
+        <div class="create-step" data-step="2">
+          <h3>选择进入身份</h3>
+          <div class="option-cards">
+            <div class="option-card selected" data-identity="original" onclick="App.selectIdentity('original', this)">
+              <h4>原创人物</h4>
+              <p>本世界原创人物，不知道原著</p>
+            </div>
+            <div class="option-card" data-identity="transmigrator" onclick="App.selectIdentity('transmigrator', this)">
+              <h4>穿越者</h4>
+              <p>保留原著记忆，但记忆不等于证据</p>
+            </div>
+            <div class="option-card" data-identity="replacement" onclick="App.selectIdentity('replacement', this)">
+              <h4>原著人物替代</h4>
+              <p>成为已有角色，替代其人生轨迹</p>
+            </div>
+            <div class="option-card" data-identity="ordinary" onclick="App.selectIdentity('ordinary', this)">
+              <h4>普通人</h4>
+              <p>从普通人开始，逐渐发现世界真相</p>
+            </div>
+            <div class="option-card" data-identity="family" onclick="App.selectIdentity('family', this)">
+              <h4>混血种家族</h4>
+              <p>拥有符合背景的社会关系和资源</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 步骤3：基础信息 -->
+        <div class="create-step" data-step="3">
+          <h3>基础信息</h3>
+          <div class="form-group">
+            <label>姓名</label>
+            <input type="text" id="player-name" placeholder="输入角色姓名" value="林渊">
+          </div>
+          <div class="form-group">
+            <label>年龄</label>
+            <input type="number" id="player-age" value="18" min="10" max="60">
+          </div>
+          <div class="form-group">
+            <label>性别</label>
+            <select id="player-gender">
+              <option value="male">男</option>
+              <option value="female">女</option>
+              <option value="other">其他</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>家庭背景 / 成长经历</label>
+            <textarea id="player-background" rows="3" placeholder="简要描述角色的家庭背景和成长经历"></textarea>
+          </div>
+          <div class="form-group">
+            <label>性格 / 价值观 / 长期目标</label>
+            <textarea id="player-personality" rows="3" placeholder="描述角色的性格特点、价值观和长期目标"></textarea>
+          </div>
+        </div>
+
+        <!-- 步骤4：血统能力 -->
+        <div class="create-step" data-step="4">
+          <h3>血统与能力</h3>
+          <div class="form-group">
+            <label>血统评级</label>
+            <select id="player-bloodline">
+              <option value="E">E级（普通人类）</option>
+              <option value="D">D级（低浓度混血种）</option>
+              <option value="C" selected>C级（中浓度混血种）</option>
+              <option value="B">B级（高浓度混血种）</option>
+              <option value="A">A级（精英混血种）</option>
+              <option value="S">S级（罕见高危血统）</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>言灵（可选，留空则随机或后续觉醒）</label>
+            <input type="text" id="player-yanling" placeholder="如：君焰、时间零、蛇等，或留空">
+          </div>
+          <div class="form-group">
+            <label>初始组织 / 身份</label>
+            <select id="player-organization">
+              <option value="none">无（自由身份）</option>
+              <option value="cassell_student" selected>卡塞尔学院学生</option>
+              <option value="cassell_prep">卡塞尔预科</option>
+              <option value="execution">执行部相关人员</option>
+              <option value="research">研究人员</option>
+              <option value="japan_family">日本混血种家族</option>
+              <option value="independent">独立混血种</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>进入时间</label>
+            <select id="player-timeline">
+              <option value="T0">原著主要剧情之前</option>
+              <option value="T1" selected>《火之晨曦》前期</option>
+              <option value="T2">卡塞尔学院时期</option>
+              <option value="T3">《悼亡者之瞳》时期</option>
+              <option value="T4">《黑月之潮》时期</option>
+              <option value="T5">奥丁/世界重启相关时期</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- 步骤5：确认 -->
+        <div class="create-step" data-step="5">
+          <h3>确认角色信息</h3>
+          <div id="character-summary" class="summary-box"></div>
+          <p class="warning-text">确认后世界时间正式开始运行，你将进入一个已经存在的龙族世界。</p>
+        </div>
+
+        <div class="create-nav">
+          <button class="btn btn-outline" onclick="App.prevCreateStep()" id="prev-btn">上一步</button>
+          <button class="btn btn-primary" onclick="App.nextCreateStep()" id="next-btn">下一步</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 游戏主界面 -->
+    <div id="game-page" class="page">
+      <div class="game-layout">
+        <!-- 左侧状态面板 -->
+        <div class="left-panel">
+          <div class="panel-header">
+            <h3 id="player-name-display">角色</h3>
+            <button class="icon-btn" onclick="App.goHome()" title="返回首页">≡</button>
+          </div>
+          <div class="status-section">
+            <div class="status-row"><span class="status-label">身份</span><span id="status-identity">-</span></div>
+            <div class="status-row"><span class="status-label">血统</span><span id="status-bloodline">-</span></div>
+            <div class="status-row"><span class="status-label">言灵</span><span id="status-yanling">-</span></div>
+            <div class="status-row"><span class="status-label">组织</span><span id="status-org">-</span></div>
+          </div>
+          <div class="status-section">
+            <div class="status-row"><span class="status-label">时间</span><span id="status-time">-</span></div>
+            <div class="status-row"><span class="status-label">地点</span><span id="status-location">-</span></div>
+            <div class="status-row"><span class="status-label">蝴蝶效应</span><span id="status-butterfly">B0</span></div>
+            <div class="status-row"><span class="status-label">暴露度</span><span id="status-exposure">EX0</span></div>
+          </div>
+          <div class="status-section">
+            <div class="status-bar-label">健康</div>
+            <div class="status-bar"><div class="status-bar-fill health" id="bar-health" style="width:100%"></div></div>
+            <div class="status-bar-label">精神</div>
+            <div class="status-bar"><div class="status-bar-fill mental" id="bar-mental" style="width:100%"></div></div>
+            <div class="status-bar-label">体力</div>
+            <div class="status-bar"><div class="status-bar-fill stamina" id="bar-stamina" style="width:100%"></div></div>
+          </div>
+          <div class="status-section">
+            <div class="status-row"><span class="status-label">资金</span><span id="status-money">¥0</span></div>
+            <div class="status-row"><span class="status-label">当前任务</span><span id="status-quest">-</span></div>
+          </div>
+        </div>
+
+        <!-- 中间剧情区 -->
+        <div class="center-panel">
+          <div class="narrative-area" id="narrative-area">
+            <div class="narrative-placeholder">龙族世界正在等待你的进入...</div>
+          </div>
+          <div class="choice-area" id="choice-area" style="display:none;">
+            <div class="choice-title">你需要决定</div>
+            <div class="choice-bubbles" id="choice-bubbles"></div>
+          </div>
+          <div class="input-area">
+            <div class="quick-commands" id="quick-commands">
+              <button class="quick-btn" onclick="App.quickQuery('状态')">状态</button>
+              <button class="quick-btn" onclick="App.quickQuery('关系')">关系</button>
+              <button class="quick-btn" onclick="App.quickQuery('任务')">任务</button>
+              <button class="quick-btn" onclick="App.quickQuery('线索')">线索</button>
+              <button class="quick-btn" onclick="App.quickQuery('背包')">背包</button>
+              <button class="quick-btn" onclick="App.quickQuery('能力')">能力</button>
+              <button class="quick-btn" onclick="App.quickQuery('存档')">存档</button>
+            </div>
+            <div class="input-row">
+              <input type="text" id="player-input" placeholder="输入你的行动或指令..." onkeydown="if(event.key==='Enter')App.submitAction()">
+              <button class="btn btn-primary btn-send" onclick="App.submitAction()" id="send-btn">发送</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 右侧面板 -->
+        <div class="right-panel">
+          <div class="panel-tabs">
+            <button class="tab-btn active" data-tab="quest" onclick="App.switchTab('quest')">任务</button>
+            <button class="tab-btn" data-tab="clue" onclick="App.switchTab('clue')">线索</button>
+            <button class="tab-btn" data-tab="relation" onclick="App.switchTab('relation')">关系</button>
+            <button class="tab-btn" data-tab="inventory" onclick="App.switchTab('inventory')">背包</button>
+            <button class="tab-btn" data-tab="ability" onclick="App.switchTab('ability')">能力</button>
+            <button class="tab-btn" data-tab="faction" onclick="App.switchTab('faction')">势力</button>
+            <button class="tab-btn" data-tab="world" onclick="App.switchTab('world')">世界</button>
+            <button class="tab-btn" data-tab="save" onclick="App.switchTab('save')">存档</button>
+          </div>
+          <div class="tab-content">
+            <div class="tab-pane active" data-tab="quest">
+              <h4>任务列表</h4>
+              <div id="quest-list" class="list-empty">暂无任务</div>
+            </div>
+            <div class="tab-pane" data-tab="clue">
+              <h4>线索图谱</h4>
+              <div id="clue-list" class="list-empty">暂无线索</div>
+            </div>
+            <div class="tab-pane" data-tab="relation">
+              <h4>人际关系</h4>
+              <div id="relation-list" class="list-empty">暂无关系记录</div>
+            </div>
+            <div class="tab-pane" data-tab="inventory">
+              <h4>背包</h4>
+              <div id="inventory-list" class="list-empty">背包为空</div>
+            </div>
+            <div class="tab-pane" data-tab="ability">
+              <h4>能力与言灵</h4>
+              <div id="ability-list" class="list-empty">暂无能力记录</div>
+            </div>
+            <div class="tab-pane" data-tab="faction">
+              <h4>组织声望</h4>
+              <div id="faction-list" class="list-empty">暂无声望记录</div>
+            </div>
+            <div class="tab-pane" data-tab="world">
+              <h4>世界消息</h4>
+              <div id="world-list" class="list-empty">暂无世界消息</div>
+              <h4 style="margin-top:16px;">原著偏差</h4>
+              <div id="canon-deviation">B0 无重要偏差</div>
+              <h4 style="margin-top:16px;">伏笔追踪</h4>
+              <div id="thread-list" class="list-empty">暂无活跃伏笔</div>
+            </div>
+            <div class="tab-pane" data-tab="save">
+              <h4>存档操作</h4>
+              <div class="save-actions">
+                <button class="btn btn-secondary btn-block" onclick="App.saveToSlot(1)">存档槽 1</button>
+                <button class="btn btn-secondary btn-block" onclick="App.saveToSlot(2)">存档槽 2</button>
+                <button class="btn btn-secondary btn-block" onclick="App.saveToSlot(3)">存档槽 3</button>
+                <button class="btn btn-outline btn-block" onclick="App.loadFromSlot(1)">读取槽 1</button>
+                <button class="btn btn-outline btn-block" onclick="App.loadFromSlot(2)">读取槽 2</button>
+                <button class="btn btn-outline btn-block" onclick="App.loadFromSlot(3)">读取槽 3</button>
+                <hr>
+                <button class="btn btn-primary btn-block" onclick="App.generateSaveCode()">生成续玩码</button>
+                <div id="save-code-display" style="display:none;">
+                  <textarea id="save-code-text" readonly rows="6"></textarea>
+                  <button class="btn btn-secondary btn-block" onclick="App.copySaveCode()">复制续玩码</button>
+                </div>
+                <hr>
+                <button class="btn btn-outline btn-block" onclick="App.showLoadCodeInput()">读取续玩码</button>
+                <div id="load-code-input" style="display:none;">
+                  <textarea id="load-code-text" rows="6" placeholder="粘贴续玩码..."></textarea>
+                  <button class="btn btn-primary btn-block" onclick="App.loadFromCode()">确认读取</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 设置页 -->
+    <div id="settings-page" class="page">
+      <div class="settings-container">
+        <h2>设置</h2>
+        <div class="form-group">
+          <label>DeepSeek API Key</label>
+          <input type="password" id="settings-api-key" placeholder="sk-xxxxxxxxxxxxxxxx">
+          <p class="hint">在 platform.deepseek.com 获取 API Key。仅保存在本地浏览器中。</p>
+        </div>
+        <div class="form-group">
+          <label>模型</label>
+          <select id="settings-model">
+            <option value="deepseek-chat">deepseek-chat（V3）</option>
+            <option value="deepseek-reasoner">deepseek-reasoner（R1 推理模型）</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Temperature (创造性)</label>
+          <input type="range" id="settings-temperature" min="0" max="1.5" step="0.1" value="0.7">
+          <span id="temperature-value">0.7</span>
+        </div>
+        <div class="form-group">
+          <label>最大输出 Token</label>
+          <input type="number" id="settings-maxtokens" value="2048" min="512" max="16384">
+        </div>
+        <div class="form-group">
+          <label>API 代理地址（可选，遇CORS问题时使用）</label>
+          <input type="text" id="settings-proxy" placeholder="https://your-proxy.com/v1">
+          <p class="hint">默认使用 https://api.deepseek.com/v1。如果浏览器直接调用遇到CORS限制，可在此填写代理地址。</p>
+        </div>
+        <hr style="border:none;border-top:1px solid var(--bg-secondary);margin:24px 0;">
+        <h3 style="color:var(--title-gold);margin-bottom:16px;font-size:16px;">登录问题设置</h3>
+        <div class="form-group">
+          <label>新问题</label>
+          <input type="text" id="settings-new-question" placeholder="输入新问题">
+        </div>
+        <div class="form-group">
+          <label>新答案</label>
+          <input type="text" id="settings-new-answer" placeholder="输入新答案">
+        </div>
+        <div class="form-group">
+          <label>确认新答案</label>
+          <input type="text" id="settings-confirm-answer" placeholder="再次输入新答案">
+        </div>
+        <button class="btn btn-secondary btn-block" onclick="App.saveLoginConfig()">修改问题和答案</button>
+        <div class="settings-actions">
+          <button class="btn btn-primary" onclick="App.saveSettings()">保存设置</button>
+          <button class="btn btn-outline" onclick="App.goHome()">返回</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 存档管理页 -->
+    <div id="savemanager-page" class="page">
+      <div class="settings-container">
+        <h2>存档管理</h2>
+        <div id="save-slots-display"></div>
+        <div class="settings-actions">
+          <button class="btn btn-outline" onclick="App.goHome()">返回</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast 通知 -->
+    <div id="toast" class="toast"></div>
+  </div>
+
+  <script src="js/state.js"></script>
+  <script src="js/parser.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/ai.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    // 注册 Service Worker
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./service-worker.js')
+          .then(registration => {
+            console.log('ServiceWorker 注册成功:', registration.scope);
+          })
+          .catch(error => {
+            console.log('ServiceWorker 注册失败:', error);
+          });
+      });
+    }
+  </script>
+</body>
+</html>
