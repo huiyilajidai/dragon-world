@@ -205,8 +205,12 @@
     <!-- 游戏主界面 -->
     <div id="game-page" class="page">
       <div class="game-layout">
+        <!-- 遮罩层 -->
+        <div class="drawer-overlay" id="drawer-overlay" onclick="App.closeAllDrawers()"></div>
+        
         <!-- 左侧状态面板 -->
-        <div class="left-panel">
+        <div class="left-panel" id="left-panel">
+          <button class="drawer-close" onclick="App.closeAllDrawers()">×</button>
           <div class="panel-header">
             <h3 id="player-name-display">角色</h3>
             <button class="icon-btn" onclick="App.goHome()" title="返回首页">≡</button>
@@ -264,7 +268,8 @@
         </div>
 
         <!-- 右侧面板 -->
-        <div class="right-panel">
+        <div class="right-panel" id="right-panel">
+          <button class="drawer-close" onclick="App.closeAllDrawers()">×</button>
           <div class="panel-tabs">
             <button class="tab-btn active" data-tab="quest" onclick="App.switchTab('quest')">任务</button>
             <button class="tab-btn" data-tab="clue" onclick="App.switchTab('clue')">线索</button>
