@@ -1517,19 +1517,23 @@ body {
 
 
 
-/* v4.3.7 左滑隐藏功能样式 */
+/* v4.3.9 左滑隐藏功能样式（优化版） */
 .swipe-item-container {
   position: relative;
   overflow: hidden;
   border-radius: 8px;
   margin-bottom: 8px;
+  background: linear-gradient(135deg, #ff4d4f, #cf1322);
 }
 .swipe-item-content {
   position: relative;
   z-index: 2;
   background: #fff;
-  transition: transform 0.3s ease;
+  transition: transform 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94);
   touch-action: pan-y;
+  will-change: transform;
+  -webkit-user-select: none;
+  user-select: none;
 }
 .swipe-item-content.swiped {
   transform: translateX(-80px);
@@ -1543,21 +1547,20 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #ff4d4f, #cf1322);
+  background: transparent;
   color: #fff;
-  font-size: 13px;
-  font-weight: 500;
+  font-size: 14px;
+  font-weight: 600;
   cursor: pointer;
   z-index: 1;
   border: none;
   font-family: inherit;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity 0.15s ease;
 }
 .swipe-action:active {
-  opacity: 0.8;
+  opacity: 0.7;
+  background: rgba(255,255,255,0.1);
 }
-/* 电脑端仍然支持右键 */
-.swipe-item-content {
-  -webkit-user-select: none;
-  user-select: none;
-}
+
 

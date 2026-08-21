@@ -18,10 +18,24 @@ const App = {
   isLoggedIn: false,
 
   // 版本号常量
-  APP_VERSION: 'v4.3.8',
+  APP_VERSION: 'v4.3.9',
 
   // 更新日志数据
   CHANGELOG: [
+    {
+      version: 'v4.3.9',
+      date: '2026-08-21',
+      changes: [
+        '修复原著偏差隐藏按钮触控无反应的问题：添加独立的touch事件处理，确保移动端能正常触发',
+        '优化左滑跟手效果：基于起始transform计算目标位置，支持从已展开状态继续滑动',
+        '优化平滑动画：使用cubic-bezier(0.25, 0.46, 0.45, 0.94)缓动曲线，动画更自然平顺',
+        '新增速度判断：快速滑动时即使距离不足也能展开/收起，符合直觉操作',
+        '新增边界阻尼效果：滑动到边界时有回弹感，提升手感',
+        '优化方向判断：更精准的水平/垂直滑动识别，避免误触',
+        '添加will-change优化性能，减少卡顿',
+        '隐藏按钮背景改为透明，容器背景显示渐变色，视觉更统一'
+      ]
+    },
     {
       version: 'v4.3.8',
       date: '2026-08-21',
@@ -853,18 +867,18 @@ const App = {
     let statusMatch;
     while ((statusMatch = statusRegex.exec(content)) !== null) {
       const statusText = statusMatch[1];
-      // 解析健康、精神、体力、理智、失控值
-      const healthMatch = statusText.match(/健康[+\-]?(\d+)/);
-      const mentalMatch = statusText.match(/精神[+\-]?(\d+)/);
-      const staminaMatch = statusText.match(/体力[+\-]?(\d+)/);
-      const sanityMatch = statusText.match(/理智[+\-]?(\d+)/);
-      const dragonizationMatch = statusText.match(/失控(?:值)?[+\-]?(\d+)/);
+      // 解析健康、精神、体力、理智、失控值（修复：捕获正负号）
+      const healthMatch = statusText.match(/健康([+\-]\d+)/);
+      const mentalMatch = statusText.match(/精神([+\-]\d+)/);
+      const staminaMatch = statusText.match(/体力([+\-]\d+)/);
+      const sanityMatch = statusText.match(/理智(?:值)?([+\-]\d+)/);
+      const lossOfControlMatch = statusText.match(/失控(?:值|度)?([+\-]\d+)/);
 
       if (healthMatch) { updates.status.health = parseInt(healthMatch[1]); hasUpdates = true; }
       if (mentalMatch) { updates.status.mental = parseInt(mentalMatch[1]); hasUpdates = true; }
       if (staminaMatch) { updates.status.stamina = parseInt(staminaMatch[1]); hasUpdates = true; }
       if (sanityMatch) { updates.status.sanity = parseInt(sanityMatch[1]); hasUpdates = true; }
-      if (dragonizationMatch) { updates.status.dragonization = parseInt(dragonizationMatch[1]); hasUpdates = true; }
+      if (lossOfControlMatch) { updates.status.lossOfControl = parseInt(lossOfControlMatch[1]); hasUpdates = true; }
     }
 
     // 2. 解析【线索更新】"XXX"线索已记录，类型：人物线索，等级：关键
@@ -2303,82 +2317,169 @@ const App = {
     activeElement: null,
     startX: 0,
     startY: 0,
-    currentX: 0,
+    lastX: 0,
+    lastY: 0,
+    lastTime: 0,
+    velocity: 0,
     isDragging: false,
-    isHorizontal: false
+    isHorizontal: false,
+    isVertical: false,
+    startTransform: 0
   },
 
   // 初始化左滑功能（在渲染列表后调用）
   initSwipeFeature() {
     const containers = document.querySelectorAll('.swipe-item-container');
+    const SWIPE_WIDTH = 80; // 隐藏按钮宽度
+    const MAX_SWIPE = 100; // 最大滑动距离
+    const THRESHOLD = 40; // 展开阈值
+    const VELOCITY_THRESHOLD = 0.3; // 速度阈值（px/ms）
+
     containers.forEach(container => {
       const content = container.querySelector('.swipe-item-content');
+      const actionBtn = container.querySelector('.swipe-action');
       if (!content) return;
+
+      // 获取当前transform值
+      const getTransform = (el) => {
+        const match = el.style.transform.match(/translateX\((-?\d+(?:\.\d+)?)px\)/);
+        return match ? parseFloat(match[1]) : 0;
+      };
+
+      // 设置transform
+      const setTransform = (el, x) => {
+        el.style.transform = `translateX(${x}px)`;
+      };
 
       // 触摸开始
       content.addEventListener('touchstart', (e) => {
-        this.swipeState.startX = e.touches[0].clientX;
-        this.swipeState.startY = e.touches[0].clientY;
-        this.swipeState.currentX = this.swipeState.startX;
+        const touch = e.touches[0];
+        this.swipeState.startX = touch.clientX;
+        this.swipeState.startY = touch.clientY;
+        this.swipeState.lastX = touch.clientX;
+        this.swipeState.lastY = touch.clientY;
+        this.swipeState.lastTime = Date.now();
+        this.swipeState.velocity = 0;
         this.swipeState.isDragging = true;
         this.swipeState.isHorizontal = false;
+        this.swipeState.isVertical = false;
         this.swipeState.activeElement = content;
+        this.swipeState.startTransform = getTransform(content);
         content.style.transition = 'none';
       }, { passive: true });
 
       // 触摸移动
       content.addEventListener('touchmove', (e) => {
         if (!this.swipeState.isDragging) return;
-        const deltaX = e.touches[0].clientX - this.swipeState.startX;
-        const deltaY = e.touches[0].clientY - this.swipeState.startY;
+        const touch = e.touches[0];
+        const deltaX = touch.clientX - this.swipeState.startX;
+        const deltaY = touch.clientY - this.swipeState.startY;
 
-        // 判断是否为水平滑动
-        if (!this.swipeState.isHorizontal && Math.abs(deltaX) > 10 && Math.abs(deltaX) > Math.abs(deltaY)) {
-          this.swipeState.isHorizontal = true;
+        // 判断滑动方向（只判断一次）
+        if (!this.swipeState.isHorizontal && !this.swipeState.isVertical) {
+          if (Math.abs(deltaX) > 8 && Math.abs(deltaX) > Math.abs(deltaY) * 1.2) {
+            this.swipeState.isHorizontal = true;
+          } else if (Math.abs(deltaY) > 8 && Math.abs(deltaY) > Math.abs(deltaX) * 1.2) {
+            this.swipeState.isVertical = true;
+          }
         }
+
+        // 垂直滑动不处理，让页面正常滚动
+        if (this.swipeState.isVertical) return;
 
         if (this.swipeState.isHorizontal) {
           e.preventDefault();
-          let translateX = deltaX;
-          // 限制滑动范围
-          if (translateX > 0) translateX = 0;
-          if (translateX < -120) translateX = -120;
-          content.style.transform = `translateX(${translateX}px)`;
+          e.stopPropagation();
+
+          // 计算速度
+          const now = Date.now();
+          const dt = now - this.swipeState.lastTime;
+          if (dt > 0) {
+            this.swipeState.velocity = (touch.clientX - this.swipeState.lastX) / dt;
+          }
+          this.swipeState.lastX = touch.clientX;
+          this.swipeState.lastY = touch.clientY;
+          this.swipeState.lastTime = now;
+
+          // 计算目标位置（基于起始transform + 滑动距离）
+          let targetX = this.swipeState.startTransform + deltaX;
+
+          // 边界阻尼效果
+          if (targetX > 0) {
+            // 向右滑出边界，阻尼效果
+            targetX = targetX * 0.3;
+            if (targetX > 20) targetX = 20;
+          } else if (targetX < -MAX_SWIPE) {
+            // 向左滑出边界，阻尼效果
+            const overflow = -MAX_SWIPE - targetX;
+            targetX = -MAX_SWIPE - overflow * 0.3;
+          }
+
+          setTransform(content, targetX);
         }
       }, { passive: false });
 
       // 触摸结束
-      content.addEventListener('touchend', (e) => {
+      const handleTouchEnd = (e) => {
         if (!this.swipeState.isDragging) return;
         this.swipeState.isDragging = false;
-        content.style.transition = 'transform 0.3s ease';
 
-        const deltaX = this.swipeState.currentX - this.swipeState.startX;
-        const currentTransform = content.style.transform;
-        const match = currentTransform.match(/translateX\((-?\d+)px\)/);
-        const currentX = match ? parseInt(match[1]) : 0;
+        const currentX = getTransform(content);
+        const velocity = this.swipeState.velocity;
 
-        // 如果滑动超过40px，展开隐藏按钮；否则收起
-        if (currentX < -40) {
+        // 使用平滑的缓动动画
+        content.style.transition = 'transform 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+
+        // 判断是否展开：基于位置或速度
+        const shouldOpen = currentX < -THRESHOLD || velocity < -VELOCITY_THRESHOLD;
+
+        if (shouldOpen) {
           content.classList.add('swiped');
-          content.style.transform = 'translateX(-80px)';
+          setTransform(content, -SWIPE_WIDTH);
         } else {
           content.classList.remove('swiped');
-          content.style.transform = 'translateX(0)';
+          setTransform(content, 0);
         }
 
         this.swipeState.activeElement = null;
-      });
+      };
 
-      // 点击内容区域时收起
+      content.addEventListener('touchend', handleTouchEnd);
+      content.addEventListener('touchcancel', handleTouchEnd);
+
+      // 点击内容区域时收起（但不拦截隐藏按钮的点击）
       content.addEventListener('click', (e) => {
+        // 如果点击的是隐藏按钮或其子元素，不处理
+        if (e.target.closest('.swipe-action')) return;
+
         if (content.classList.contains('swiped')) {
           e.preventDefault();
           e.stopPropagation();
           content.classList.remove('swiped');
-          content.style.transform = 'translateX(0)';
+          content.style.transition = 'transform 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+          setTransform(content, 0);
         }
       });
+
+      // 隐藏按钮的触摸事件（确保移动端能正常触发）
+      if (actionBtn) {
+        actionBtn.addEventListener('touchstart', (e) => {
+          e.stopPropagation();
+          actionBtn.style.opacity = '0.7';
+        }, { passive: true });
+
+        actionBtn.addEventListener('touchend', (e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          actionBtn.style.opacity = '1';
+          // 触发点击
+          actionBtn.click();
+        });
+
+        actionBtn.addEventListener('touchcancel', (e) => {
+          actionBtn.style.opacity = '1';
+        });
+      }
     });
 
     // 点击页面其他区域时收起所有已滑动的条目
@@ -2386,6 +2487,7 @@ const App = {
       if (!e.target.closest('.swipe-item-container')) {
         document.querySelectorAll('.swipe-item-content.swiped').forEach(el => {
           el.classList.remove('swiped');
+          el.style.transition = 'transform 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
           el.style.transform = 'translateX(0)';
         });
       }
@@ -4002,12 +4104,12 @@ const App = {
     const p = GameState.state.player;
     const s = GameState.state;
 
-    // 确保状态值在合理范围
-    p.health = Math.max(0, Math.min(100, p.health || 100));
-    p.mental = Math.max(0, Math.min(100, p.mental || 100));
-    p.stamina = Math.max(0, Math.min(100, p.stamina || 100));
-    p.sanity = Math.max(0, Math.min(100, p.sanity || 100));
-    p.lossOfControl = Math.max(0, Math.min(100, p.lossOfControl || 0));
+    // 确保状态值在合理范围（使用null检查，避免0值被错误重置）
+    p.health = Math.max(0, Math.min(100, p.health ?? 100));
+    p.mental = Math.max(0, Math.min(100, p.mental ?? 100));
+    p.stamina = Math.max(0, Math.min(100, p.stamina ?? 100));
+    p.sanity = Math.max(0, Math.min(100, p.sanity ?? 100));
+    p.lossOfControl = Math.max(0, Math.min(100, p.lossOfControl ?? 0));
 
     // 检查各板块是否有更新（数量增加）
     if (!this._lastStateCounts) {
