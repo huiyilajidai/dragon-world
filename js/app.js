@@ -761,15 +761,56 @@ const App = {
   // ========== 四大板块自动更新解析 ==========
   // 解析AI返回的PANEL_UPDATE指令
   parsePanelUpdate(content) {
-    const match = content.match(/【PANEL_UPDATE】([\s\S]*?)【\/PANEL_UPDATE】/);
-    if (!match) return null;
+    // 首先尝试匹配完整的【PANEL_UPDATE】...【/PANEL_UPDATE】格式
+    let match = content.match(/【PANEL_UPDATE】([\s\S]*?)【\/PANEL_UPDATE】/);
+    let jsonStr = null;
+
+    if (match) {
+      jsonStr = match[1].trim();
+    } else {
+      // 兼容缺少结束标记的情况：找到【PANEL_UPDATE】后，尝试提取JSON对象
+      const startMatch = content.match(/【PANEL_UPDATE】\s*/);
+      if (startMatch) {
+        const startIndex = startMatch.index + startMatch[0].length;
+        const afterStart = content.substring(startIndex);
+        // 找到第一个{和最后一个}，提取JSON对象
+        const firstBrace = afterStart.indexOf('{');
+        if (firstBrace !== -1) {
+          // 从第一个{开始，找到匹配的最后一个}
+          let braceCount = 0;
+          let endIndex = -1;
+          for (let i = firstBrace; i < afterStart.length; i++) {
+            if (afterStart[i] === '{') braceCount++;
+            else if (afterStart[i] === '}') {
+              braceCount--;
+              if (braceCount === 0) {
+                endIndex = i;
+                break;
+              }
+            }
+          }
+          if (endIndex !== -1) {
+            jsonStr = afterStart.substring(firstBrace, endIndex + 1).trim();
+            console.log('PANEL_UPDATE缺少结束标记，已自动提取JSON');
+          }
+        }
+      }
+    }
+
+    if (!jsonStr) return null;
 
     try {
-      const jsonStr = match[1].trim();
       return JSON.parse(jsonStr);
     } catch (e) {
       console.error('PANEL_UPDATE解析失败:', e);
-      return null;
+      // 尝试修复常见的JSON格式问题（如尾部逗号）
+      try {
+        const fixedJson = jsonStr.replace(/,\s*([}\]])/g, '$1');
+        return JSON.parse(fixedJson);
+      } catch (e2) {
+        console.error('PANEL_UPDATE修复后仍解析失败:', e2);
+        return null;
+      }
     }
   },
 
@@ -842,7 +883,41 @@ const App = {
 
   // 从内容中移除PANEL_UPDATE部分
   stripPanelUpdate(content) {
-    return content.replace(/【PANEL_UPDATE】[\s\S]*?【\/PANEL_UPDATE】/g, '').trim();
+    // 首先尝试移除完整的【PANEL_UPDATE】...【/PANEL_UPDATE】格式
+    let result = content.replace(/【PANEL_UPDATE】[\s\S]*?【\/PANEL_UPDATE】/g, '').trim();
+
+    // 如果结果中仍然包含【PANEL_UPDATE】，说明缺少结束标记
+    if (result.includes('【PANEL_UPDATE】')) {
+      const startMatch = result.match(/【PANEL_UPDATE】\s*/);
+      if (startMatch) {
+        const startIndex = startMatch.index;
+        const afterStart = result.substring(startIndex + startMatch[0].length);
+        // 找到第一个{和匹配的最后一个}，移除整个JSON对象
+        const firstBrace = afterStart.indexOf('{');
+        if (firstBrace !== -1) {
+          let braceCount = 0;
+          let endIndex = -1;
+          for (let i = firstBrace; i < afterStart.length; i++) {
+            if (afterStart[i] === '{') braceCount++;
+            else if (afterStart[i] === '}') {
+              braceCount--;
+              if (braceCount === 0) {
+                endIndex = i;
+                break;
+              }
+            }
+          }
+          if (endIndex !== -1) {
+            // 移除从【PANEL_UPDATE】到JSON结束的部分
+            const removeEnd = startIndex + startMatch[0].length + endIndex + 1;
+            result = (result.substring(0, startIndex) + result.substring(removeEnd)).trim();
+            console.log('PANEL_UPDATE缺少结束标记，已自动剥离');
+          }
+        }
+      }
+    }
+
+    return result;
   },
 
   // 文本解析兜底函数：从AI返回的文本中提取状态更新提示
