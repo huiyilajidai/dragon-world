@@ -18,10 +18,38 @@ const App = {
   isLoggedIn: false,
 
   // 版本号常量
-  APP_VERSION: 'v4.3.9',
+  APP_VERSION: 'v4.3.11',
 
   // 更新日志数据
   CHANGELOG: [
+    {
+      version: 'v4.3.11',
+      date: '2026-08-21',
+      changes: [
+        '修复隐藏条目自动浮现逻辑：移除原著偏差和伏笔板块中"添加新记录时取消所有隐藏条目隐藏状态"的错误逻辑',
+        '现在只有被隐藏条目本身发生变化时才会自动浮现（关系板块已有此逻辑，原著偏差和伏笔记录只增不改，隐藏后不会自动浮现）',
+        '修复隐藏多个条目后页面卡顿的bug：initSwipeFeature被多个渲染函数重复调用导致事件监听器重复绑定',
+        '添加data-swipe-bound标志，已绑定左滑事件的容器跳过重复绑定，大幅提升多条目隐藏后的页面流畅度',
+        '优化左滑事件绑定性能：使用属性选择器:not([data-swipe-bound])只选择未绑定的容器'
+      ]
+    },
+    {
+      version: 'v4.3.10',
+      date: '2026-08-21',
+      changes: [
+        '修复原著偏差隐藏按钮无反应的bug：数据路径错误，原使用GameState.state.world.canonDeviations，实际数据存储在GameState.state.canonDeviation',
+        '修复executePanelUpdate中原著偏差自动取消隐藏的数据路径错误',
+        '修复状态栏进度条有时不更新的bug：updateStatusPerTurn中使用||运算符导致0值被错误重置为100，改用??空值合并运算符',
+        '修复parseTextUpdates中正则表达式未捕获正负号的bug：原/健康[+\\-]?(\\d+)/只捕获数字，导致"健康-2"被解析为+2，改为/健康([+\\-]\\d+)/强制捕获正负号',
+        '修复parseTextUpdates中失控值字段名不匹配的bug：原使用dragonization，实际应为lossOfControl',
+        '增强PANEL_UPDATE解析：支持AI忘记输出【/PANEL_UPDATE】结束标记的情况，自动通过括号匹配提取JSON对象',
+        '增强PANEL_UPDATE剥离：同样支持缺少结束标记的情况，自动剥离JSON内容',
+        '添加JSON格式自动修复：自动移除尾部逗号等常见格式问题',
+        '修复enterGame中默认切换到已删除的quest板块，改为默认切换到relation板块',
+        'hideItem函数添加未找到记录时的错误提示',
+        '全面代码检索：检查数据路径一致性、状态更新逻辑、面板渲染空值检查、事件绑定、HTML元素存在性等'
+      ]
+    },
     {
       version: 'v4.3.9',
       date: '2026-08-21',
@@ -1397,12 +1425,8 @@ const App = {
       }
       updates.canonDeviation = true;
       updateMessages.push('【世界线自检】本次行为产生原著剧情偏差');
-      // 信息变化时自动取消所有隐藏的原著偏差记录
-      if (GameState.state.world.canonDeviations) {
-        GameState.state.world.canonDeviations.forEach(d => {
-          if (d.hidden) d.hidden = false;
-        });
-      }
+      // 注意：添加新记录时不取消已隐藏条目的隐藏状态
+      // 只有被隐藏条目本身发生变化时才会自动浮现（原著偏差记录只增不改，所以隐藏后不会自动浮现）
     }
 
     // 8. 处理伏笔追踪更新
@@ -1412,12 +1436,8 @@ const App = {
       }
       updates.foreshadowing = true;
       updateMessages.push('【伏笔追踪】新增一条隐藏剧情伏笔');
-      // 信息变化时自动取消所有隐藏的伏笔记录
-      if (GameState.state.foreshadowing) {
-        GameState.state.foreshadowing.forEach(f => {
-          if (f.hidden) f.hidden = false;
-        });
-      }
+      // 注意：添加新记录时不取消已隐藏条目的隐藏状态
+      // 只有被隐藏条目本身发生变化时才会自动浮现（伏笔记录只增不改，所以隐藏后不会自动浮现）
     }
 
     // 显示更新提示
@@ -1584,7 +1604,7 @@ const App = {
     this.updateStatusPanel();
     this.renderNarrative();
     this.renderChoice();
-    this.switchTab('quest');
+    this.switchTab('relation');
     this.updateRedDots();
     this.updateCurrentQuest();
     this.checkExpiredQuests();
@@ -2404,13 +2424,16 @@ const App = {
 
   // 初始化左滑功能（在渲染列表后调用）
   initSwipeFeature() {
-    const containers = document.querySelectorAll('.swipe-item-container');
+    const containers = document.querySelectorAll('.swipe-item-container:not([data-swipe-bound])');
     const SWIPE_WIDTH = 80; // 隐藏按钮宽度
     const MAX_SWIPE = 100; // 最大滑动距离
     const THRESHOLD = 40; // 展开阈值
     const VELOCITY_THRESHOLD = 0.3; // 速度阈值（px/ms）
 
     containers.forEach(container => {
+      // 标记为已绑定，避免重复绑定导致卡顿
+      container.setAttribute('data-swipe-bound', 'true');
+
       const content = container.querySelector('.swipe-item-content');
       const actionBtn = container.querySelector('.swipe-action');
       if (!content) return;
@@ -2606,13 +2629,19 @@ const App = {
         rel.hidden = true;
         this.renderRelationList();
         this.toast('已隐藏该关系条目，信息变化时将自动浮现', 'info');
+      } else {
+        this.toast('未找到该关系条目', 'error');
       }
     } else if (type === 'canonDeviation') {
-      const dev = GameState.state.world.canonDeviations ? GameState.state.world.canonDeviations.find(d => (d.id || '') === id) : null;
+      // 修复：原著偏差数据存储在 GameState.state.canonDeviation
+      const deviations = GameState.state.canonDeviation || [];
+      const dev = deviations.find(d => (d.id || '') === id);
       if (dev) {
         dev.hidden = true;
         this.renderWorldPanel();
         this.toast('已隐藏该原著偏差记录，信息变化时将自动浮现', 'info');
+      } else {
+        this.toast('未找到该原著偏差记录', 'error');
       }
     } else if (type === 'foreshadowing') {
       const fs = GameState.state.foreshadowing ? GameState.state.foreshadowing.find(f => (f.id || '') === id) : null;
@@ -2620,6 +2649,8 @@ const App = {
         fs.hidden = true;
         this.renderWorldPanel();
         this.toast('已隐藏该伏笔记录，信息变化时将自动浮现', 'info');
+      } else {
+        this.toast('未找到该伏笔记录', 'error');
       }
     }
   },
