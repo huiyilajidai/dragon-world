@@ -18,10 +18,32 @@ const App = {
   isLoggedIn: false,
 
   // 版本号常量
-  APP_VERSION: 'v4.3.6',
+  APP_VERSION: 'v4.3.8',
 
   // 更新日志数据
   CHANGELOG: [
+    {
+      version: 'v4.3.8',
+      date: '2026-08-21',
+      changes: [
+        '优化手机端隐藏功能交互：条目向左滑动后出现隐藏按钮，替代原长按方式',
+        '左滑支持实时跟手效果与平滑动画，最大滑动距离120px，隐藏按钮宽度80px',
+        '支持上下滚动与左右滑动的智能识别，避免误触',
+        '点击条目内容区域或页面其他位置自动收起已滑动的条目',
+        '电脑端保留右键显示隐藏按钮功能作为备选'
+      ]
+    },
+    {
+      version: 'v4.3.7',
+      date: '2026-08-21',
+      changes: [
+        '新增五维数值全自动变动设定（健康/体力/精神/理智/失控值），AI全自动实时判定、联动变化、自动恢复、自动惩罚',
+        '五维互相连锁影响，一值崩全值崩，完美复刻混血种身体反噬逻辑',
+        '关系、势力与世界发生变动时按键出现红点，界面出现弹窗',
+        '关系、原著偏差与伏笔板块增加隐藏功能，长按信息出现隐藏按键，隐藏后不可视，后续对应信息发生变化自动浮现',
+        '对话框按键顺序与板块展开后顺序统一'
+      ]
+    },
     {
       version: 'v4.3.6',
       date: '2026-08-21',
@@ -1192,11 +1214,20 @@ const App = {
             if (result.success) {
               updates.relation = true;
               this.triggerLinkage('relation', result.relation, false);
+              // 信息变化时自动取消隐藏
+              if (result.relation.hidden) {
+                result.relation.hidden = false;
+              }
             }
           }
         } else if (rel.action === 'lock') {
           GameState.lockRelation(rel.id, rel.deathNote);
           updates.relation = true;
+          // 信息变化时自动取消隐藏
+          const lockedRel = GameState.getRelation(rel.id);
+          if (lockedRel && lockedRel.hidden) {
+            lockedRel.hidden = false;
+          }
         } else if (rel.action === 'add') {
           if (!existingRelation) {
             GameState.addRelation({
@@ -1277,6 +1308,12 @@ const App = {
       }
       updates.canonDeviation = true;
       updateMessages.push('【世界线自检】本次行为产生原著剧情偏差');
+      // 信息变化时自动取消所有隐藏的原著偏差记录
+      if (GameState.state.world.canonDeviations) {
+        GameState.state.world.canonDeviations.forEach(d => {
+          if (d.hidden) d.hidden = false;
+        });
+      }
     }
 
     // 8. 处理伏笔追踪更新
@@ -1286,6 +1323,12 @@ const App = {
       }
       updates.foreshadowing = true;
       updateMessages.push('【伏笔追踪】新增一条隐藏剧情伏笔');
+      // 信息变化时自动取消所有隐藏的伏笔记录
+      if (GameState.state.foreshadowing) {
+        GameState.state.foreshadowing.forEach(f => {
+          if (f.hidden) f.hidden = false;
+        });
+      }
     }
 
     // 显示更新提示
@@ -1310,6 +1353,13 @@ const App = {
       this.showQuickBtnDot('faction', true);
       const factionMsg = updateMessages.find(m => m.includes('声望')) || '【势力变动】组织声望发生变化';
       this.showUpdatePopup('faction', factionMsg);
+    }
+
+    // 世界变动：显示红点和专门弹窗
+    if (updates.worldNews || updates.canonDeviation || updates.foreshadowing) {
+      this.showQuickBtnDot('world', true);
+      const worldMsg = updateMessages.find(m => m.includes('世界') || m.includes('世界线') || m.includes('伏笔')) || '【世界变动】监测到新的世界变化';
+      this.showUpdatePopup('world', worldMsg);
     }
 
     // 刷新所有有变动的板块
@@ -1351,6 +1401,9 @@ const App = {
     } else if (type === 'faction') {
       icon = '🏛️';
       color = '#fa8c16';
+    } else if (type === 'world') {
+      icon = '🌍';
+      color = '#13c2c2';
     }
 
     popup.style.cssText = `
@@ -1870,9 +1923,10 @@ const App = {
     // 其他 - 手机端展开右侧抽屉，电脑端只切换标签
     if (tab) {
       this.switchTab(tab);
-      // 点击关系或势力按键时隐藏对应的红点
+      // 点击关系、势力或世界按键时隐藏对应的红点
       if (tab === 'relation') this.showQuickBtnDot('relation', false);
       if (tab === 'faction') this.showQuickBtnDot('faction', false);
+      if (tab === 'world') this.showQuickBtnDot('world', false);
       if (isMobile) {
         this.openRightDrawer();
       }
@@ -2195,7 +2249,15 @@ const App = {
       '熟悉': 'familiar', '友好': 'friendly', '信任': 'trust', '挚友': 'best'
     };
 
-    list.innerHTML = relations.map(r => {
+    // 过滤掉隐藏的条目
+    const visibleRelations = relations.filter(r => !r.hidden);
+
+    if (visibleRelations.length === 0) {
+      list.innerHTML = '<div class="list-empty">暂无可见关系记录（长按条目可隐藏/显示）</div>';
+      return;
+    }
+
+    list.innerHTML = visibleRelations.map((r, index) => {
       const affinityClass = affinityClassMap[r.affinity] || 'normal';
       // 确保stance是数组（兼容旧存档的字符串格式）
       let stanceArray = r.stance;
@@ -2208,19 +2270,181 @@ const App = {
       const hiddenHint = r.hiddenBond ? '<div class="relation-hidden">✨ 已解锁隐藏羁绊</div>' : '';
       // 确保name字段存在，如果缺失则使用id或"未知人物"
       const displayName = r.name || r.id || '未知人物';
+      const relId = r.id || ('rel_' + index);
 
       return `
-        <div class="relation-card ${r.isDead ? 'dead' : ''}">
-          <div class="relation-name">
-            ${this.escapeHtml(displayName)}
-            <span class="relation-affinity ${affinityClass}">${this.escapeHtml(r.affinity)}</span>
+        <div class="swipe-item-container">
+          <div class="swipe-item-content relation-card ${r.isDead ? 'dead' : ''}" data-rel-id="${this.escapeHtml(relId)}"
+               oncontextmenu="App.showHideButton('relation', '${this.escapeHtml(relId)}'); return false;">
+            <div class="relation-name">
+              ${this.escapeHtml(displayName)}
+              <span class="relation-affinity ${affinityClass}">${this.escapeHtml(r.affinity)}</span>
+            </div>
+            <div class="relation-stance">${stanceTags}</div>
+            <div class="relation-note">${this.escapeHtml(r.note || '暂无备注')}</div>
+            ${hiddenHint}
           </div>
-          <div class="relation-stance">${stanceTags}</div>
-          <div class="relation-note">${this.escapeHtml(r.note || '暂无备注')}</div>
-          ${hiddenHint}
+          <button class="swipe-action" onclick="App.hideItem('relation', '${this.escapeHtml(relId)}')">隐藏</button>
         </div>
       `;
     }).join('');
+
+    // 初始化左滑功能
+    setTimeout(() => this.initSwipeFeature(), 50);
+  },
+
+  // 长按计时器
+  longPressTimer: null,
+  longPressType: null,
+  longPressId: null,
+
+  // 左滑状态
+  swipeState: {
+    activeElement: null,
+    startX: 0,
+    startY: 0,
+    currentX: 0,
+    isDragging: false,
+    isHorizontal: false
+  },
+
+  // 初始化左滑功能（在渲染列表后调用）
+  initSwipeFeature() {
+    const containers = document.querySelectorAll('.swipe-item-container');
+    containers.forEach(container => {
+      const content = container.querySelector('.swipe-item-content');
+      if (!content) return;
+
+      // 触摸开始
+      content.addEventListener('touchstart', (e) => {
+        this.swipeState.startX = e.touches[0].clientX;
+        this.swipeState.startY = e.touches[0].clientY;
+        this.swipeState.currentX = this.swipeState.startX;
+        this.swipeState.isDragging = true;
+        this.swipeState.isHorizontal = false;
+        this.swipeState.activeElement = content;
+        content.style.transition = 'none';
+      }, { passive: true });
+
+      // 触摸移动
+      content.addEventListener('touchmove', (e) => {
+        if (!this.swipeState.isDragging) return;
+        const deltaX = e.touches[0].clientX - this.swipeState.startX;
+        const deltaY = e.touches[0].clientY - this.swipeState.startY;
+
+        // 判断是否为水平滑动
+        if (!this.swipeState.isHorizontal && Math.abs(deltaX) > 10 && Math.abs(deltaX) > Math.abs(deltaY)) {
+          this.swipeState.isHorizontal = true;
+        }
+
+        if (this.swipeState.isHorizontal) {
+          e.preventDefault();
+          let translateX = deltaX;
+          // 限制滑动范围
+          if (translateX > 0) translateX = 0;
+          if (translateX < -120) translateX = -120;
+          content.style.transform = `translateX(${translateX}px)`;
+        }
+      }, { passive: false });
+
+      // 触摸结束
+      content.addEventListener('touchend', (e) => {
+        if (!this.swipeState.isDragging) return;
+        this.swipeState.isDragging = false;
+        content.style.transition = 'transform 0.3s ease';
+
+        const deltaX = this.swipeState.currentX - this.swipeState.startX;
+        const currentTransform = content.style.transform;
+        const match = currentTransform.match(/translateX\((-?\d+)px\)/);
+        const currentX = match ? parseInt(match[1]) : 0;
+
+        // 如果滑动超过40px，展开隐藏按钮；否则收起
+        if (currentX < -40) {
+          content.classList.add('swiped');
+          content.style.transform = 'translateX(-80px)';
+        } else {
+          content.classList.remove('swiped');
+          content.style.transform = 'translateX(0)';
+        }
+
+        this.swipeState.activeElement = null;
+      });
+
+      // 点击内容区域时收起
+      content.addEventListener('click', (e) => {
+        if (content.classList.contains('swiped')) {
+          e.preventDefault();
+          e.stopPropagation();
+          content.classList.remove('swiped');
+          content.style.transform = 'translateX(0)';
+        }
+      });
+    });
+
+    // 点击页面其他区域时收起所有已滑动的条目
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.swipe-item-container')) {
+        document.querySelectorAll('.swipe-item-content.swiped').forEach(el => {
+          el.classList.remove('swiped');
+          el.style.transform = 'translateX(0)';
+        });
+      }
+    });
+  },
+
+  // 开始长按
+  startLongPress(type, id) {
+    this.longPressType = type;
+    this.longPressId = id;
+    this.longPressTimer = setTimeout(() => {
+      this.showHideButton(type, id);
+    }, 600);
+  },
+
+  // 取消长按
+  cancelLongPress() {
+    if (this.longPressTimer) {
+      clearTimeout(this.longPressTimer);
+      this.longPressTimer = null;
+    }
+  },
+
+  // 显示隐藏按钮
+  showHideButton(type, id) {
+    const btnContainer = document.getElementById('hide-btn-' + id);
+    if (btnContainer) {
+      btnContainer.style.display = 'block';
+      // 3秒后自动隐藏
+      setTimeout(() => {
+        if (btnContainer) btnContainer.style.display = 'none';
+      }, 3000);
+    }
+  },
+
+  // 隐藏条目
+  hideItem(type, id) {
+    if (type === 'relation') {
+      const rel = GameState.state.relations.find(r => (r.id || '') === id);
+      if (rel) {
+        rel.hidden = true;
+        this.renderRelationList();
+        this.toast('已隐藏该关系条目，信息变化时将自动浮现', 'info');
+      }
+    } else if (type === 'canonDeviation') {
+      const dev = GameState.state.world.canonDeviations ? GameState.state.world.canonDeviations.find(d => (d.id || '') === id) : null;
+      if (dev) {
+        dev.hidden = true;
+        this.renderWorldPanel();
+        this.toast('已隐藏该原著偏差记录，信息变化时将自动浮现', 'info');
+      }
+    } else if (type === 'foreshadowing') {
+      const fs = GameState.state.foreshadowing ? GameState.state.foreshadowing.find(f => (f.id || '') === id) : null;
+      if (fs) {
+        fs.hidden = true;
+        this.renderWorldPanel();
+        this.toast('已隐藏该伏笔记录，信息变化时将自动浮现', 'info');
+      }
+    }
   },
 
   // 背包更新检查：后台校验，把刚才剧情中获得的物品同步更新到背包
@@ -2613,19 +2837,38 @@ const App = {
       list.innerHTML = '<div class="list-empty">暂无原著偏差记录</div>';
       return;
     }
-    list.innerHTML = deviations.slice().reverse().map(d => `
-      <div class="deviation-item level-${d.type}">
-        <div class="deviation-header">
-          <span class="deviation-level">${this.escapeHtml(d.level)}</span>
-          <span class="deviation-time">${this.escapeHtml(d.time)}</span>
+
+    // 过滤掉隐藏的条目
+    const visibleDeviations = deviations.filter(d => !d.hidden);
+
+    if (visibleDeviations.length === 0) {
+      list.innerHTML = '<div class="list-empty">暂无可见偏差记录（长按条目可隐藏/显示）</div>';
+      return;
+    }
+
+    list.innerHTML = visibleDeviations.slice().reverse().map((d, index) => {
+      const devId = d.id || ('dev_' + index);
+      return `
+      <div class="swipe-item-container">
+        <div class="swipe-item-content deviation-item level-${d.type}" data-dev-id="${this.escapeHtml(devId)}"
+             oncontextmenu="App.showHideButton('canonDeviation', '${this.escapeHtml(devId)}'); return false;">
+          <div class="deviation-header">
+            <span class="deviation-level">${this.escapeHtml(d.level)}</span>
+            <span class="deviation-time">${this.escapeHtml(d.time)}</span>
+          </div>
+          <div class="deviation-desc">${this.escapeHtml(d.description)}</div>
+          ${d.originalEvent ? `<div class="deviation-detail">原著：${this.escapeHtml(d.originalEvent)}</div>` : ''}
+          ${d.changedEvent ? `<div class="deviation-detail">当前：${this.escapeHtml(d.changedEvent)}</div>` : ''}
+          ${d.impact ? `<div class="deviation-impact">影响：${this.escapeHtml(d.impact)}</div>` : ''}
+          ${d.regressionAction ? `<div class="deviation-regression">回归建议：${this.escapeHtml(d.regressionAction)}</div>` : ''}
         </div>
-        <div class="deviation-desc">${this.escapeHtml(d.description)}</div>
-        ${d.originalEvent ? `<div class="deviation-detail">原著：${this.escapeHtml(d.originalEvent)}</div>` : ''}
-        ${d.changedEvent ? `<div class="deviation-detail">当前：${this.escapeHtml(d.changedEvent)}</div>` : ''}
-        ${d.impact ? `<div class="deviation-impact">影响：${this.escapeHtml(d.impact)}</div>` : ''}
-        ${d.regressionAction ? `<div class="deviation-regression">回归建议：${this.escapeHtml(d.regressionAction)}</div>` : ''}
+        <button class="swipe-action" onclick="App.hideItem('canonDeviation', '${this.escapeHtml(devId)}')">隐藏</button>
       </div>
-    `).join('');
+    `;
+    }).join('');
+
+    // 初始化左滑功能
+    setTimeout(() => this.initSwipeFeature(), 50);
   },
 
   renderForeshadowingList() {
@@ -2642,25 +2885,42 @@ const App = {
       '已作废': 'invalid',
       '高危暗线': 'danger'
     };
-    list.innerHTML = foreshadowing.slice().reverse().map(f => {
+
+    // 过滤掉隐藏的条目
+    const visibleForeshadowing = foreshadowing.filter(f => !f.hidden);
+
+    if (visibleForeshadowing.length === 0) {
+      list.innerHTML = '<div class="list-empty">暂无可见伏笔记录（长按条目可隐藏/显示）</div>';
+      return;
+    }
+
+    list.innerHTML = visibleForeshadowing.slice().reverse().map((f, index) => {
       // 兼容旧数据：如果title和description为空，但有content字段，就使用content字段
       const title = f.title || f.content || '未命名伏笔';
       const description = f.description || f.content || '暂无描述';
+      const fsId = f.id || ('fs_' + index);
       return `
-      <div class="foreshadow-item status-${statusClassMap[f.status] || 'inactive'}">
-        <div class="foreshadow-header">
-          <span class="foreshadow-title">${this.escapeHtml(title)}</span>
-          <span class="foreshadow-status">${this.escapeHtml(f.status)}</span>
+      <div class="swipe-item-container">
+        <div class="swipe-item-content foreshadow-item status-${statusClassMap[f.status] || 'inactive'}" data-fs-id="${this.escapeHtml(fsId)}"
+             oncontextmenu="App.showHideButton('foreshadowing', '${this.escapeHtml(fsId)}'); return false;">
+          <div class="foreshadow-header">
+            <span class="foreshadow-title">${this.escapeHtml(title)}</span>
+            <span class="foreshadow-status">${this.escapeHtml(f.status)}</span>
+          </div>
+          <div class="foreshadow-desc">${this.escapeHtml(description)}</div>
+          <div class="foreshadow-meta">
+            ${f.relatedNPC ? `<span>关联：${this.escapeHtml(f.relatedNPC)}</span>` : ''}
+            <span>时间：${this.escapeHtml(f.time)}</span>
+          </div>
+          ${f.triggerCondition ? `<div class="foreshadow-trigger">触发条件：${this.escapeHtml(f.triggerCondition)}</div>` : ''}
         </div>
-        <div class="foreshadow-desc">${this.escapeHtml(description)}</div>
-        <div class="foreshadow-meta">
-          ${f.relatedNPC ? `<span>关联：${this.escapeHtml(f.relatedNPC)}</span>` : ''}
-          <span>时间：${this.escapeHtml(f.time)}</span>
-        </div>
-        ${f.triggerCondition ? `<div class="foreshadow-trigger">触发条件：${this.escapeHtml(f.triggerCondition)}</div>` : ''}
+        <button class="swipe-action" onclick="App.hideItem('foreshadowing', '${this.escapeHtml(fsId)}')">隐藏</button>
       </div>
     `;
     }).join('');
+
+    // 初始化左滑功能
+    setTimeout(() => this.initSwipeFeature(), 50);
   },
 
   getButterflyDesc(level) {

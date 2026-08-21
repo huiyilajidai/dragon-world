@@ -1,4 +1,4 @@
-/* 龙族世界模拟器 - 莫兰迪浅色系 */
+﻿/* 龙族世界模拟器 - 莫兰迪浅色系 */
 :root {
   --bg-primary: #FDF6F0;
   --bg-secondary: #F5EDE4;
@@ -1508,3 +1508,56 @@ body {
 .ability-item.locked { opacity: 0.5; }
 .ability-item.dangerous { border-left-color: var(--border-coral) !important; }
 .ability-item.dangerous .ability-name { color: var(--title-coral) !important; }
+
+/* v4.3.7 隐藏功能样式 */
+.btn-small { padding: 4px 10px; font-size: 11px; white-space: nowrap; border-radius: 6px; cursor: pointer; border: none; font-family: inherit; }
+.btn-danger { background: linear-gradient(135deg, #ff4d4f, #cf1322); color: #fff; }
+.btn-danger:hover { opacity: 0.9; }
+.hide-btn-container { text-align: center; }
+
+
+
+/* v4.3.7 左滑隐藏功能样式 */
+.swipe-item-container {
+  position: relative;
+  overflow: hidden;
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+.swipe-item-content {
+  position: relative;
+  z-index: 2;
+  background: #fff;
+  transition: transform 0.3s ease;
+  touch-action: pan-y;
+}
+.swipe-item-content.swiped {
+  transform: translateX(-80px);
+}
+.swipe-action {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #ff4d4f, #cf1322);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  z-index: 1;
+  border: none;
+  font-family: inherit;
+}
+.swipe-action:active {
+  opacity: 0.8;
+}
+/* 电脑端仍然支持右键 */
+.swipe-item-content {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
