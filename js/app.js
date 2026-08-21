@@ -8,6 +8,8 @@ const App = {
   },
   isGenerating: false,
   currentTab: 'quest',
+  currentClueSubTab: 'all',
+  currentWorldSubTab: 'worldNews',
   // 登录配置（可在设置中修改）
   loginConfig: {
     question: '马义航是不是你爸爸？',
@@ -16,10 +18,47 @@ const App = {
   isLoggedIn: false,
 
   // 版本号常量
-  APP_VERSION: 'v4.1.9',
+  APP_VERSION: 'v4.3.3',
 
   // 更新日志数据
   CHANGELOG: [
+    {
+      version: 'v4.3.3',
+      date: '2026-08-21',
+      changes: [
+        '修复伏笔追踪记录后在板块里不显示字体的问题',
+        '修复parseTextUpdates函数中添加伏笔时使用错误的content字段，改为正确的title和description字段',
+        'renderForeshadowingList函数添加兼容逻辑，支持旧数据的content字段显示'
+      ]
+    },
+    {
+      version: 'v4.2.12',
+      date: '2026-08-21',
+      changes: [
+        '修复剧情生成失败错误：Can\'t find variable: 失控Match',
+        '将parseTextUpdates函数中的中文变量名失控Match改为英文变量名dragonizationMatch，避免JavaScript变量解析错误'
+      ]
+    },
+    {
+      version: 'v4.2.11',
+      date: '2026-08-21',
+      changes: [
+        '修复新人物关系显示拼音的问题，系统提示词新增【人物名字规范】，明确要求所有人物名字必须使用中文',
+        '新增名字校验逻辑：检测到拼音名字时自动尝试修复，优先使用映射表，其次从剧情文本中提取中文名字',
+        '新增fixPinyinName函数，支持常见龙族人物名字的拼音到中文自动转换'
+      ]
+    },
+    {
+      version: 'v4.2.10',
+      date: '2026-08-21',
+      changes: [
+        '线索板块增加子标签分支：全部、环境线索、人物线索、遗迹线索、残缺线索，点击切换查看对应分类',
+        '强制区分后台真实游戏状态与格式示例样板，禁止AI输出静态示例模板',
+        '系统提示词新增【真实状态与示例样板严格隔离】章节，明确要求AI读取后台真实状态数据',
+        '每轮推演前AI内部校验真实状态，状态变化立刻同步更新对应板块信息',
+        '获得线索、物品、关系变化、势力声望变化等必须立刻同步更新对应板块，并用弹窗与按键红点提示'
+      ]
+    },
     {
       version: 'v4.1.9',
       date: '2026-08-21',
@@ -664,9 +703,252 @@ const App = {
     }
   },
 
+  // 修复拼音名字：尝试从最近的剧情文本中提取对应的中文名字
+  fixPinyinName(pinyinName, id) {
+    // 从最近的叙事文本中搜索可能的中文名字
+    const narratives = GameState.state.narratives || [];
+    const recentText = narratives.slice(-10).map(n => n.content || '').join('\n');
+
+    // 简单的拼音到中文名字的映射（常见名字）
+    const pinyinMap = {
+      'chen_mobai': '陈墨白',
+      'chenmobai': '陈墨白',
+      'lu_mingfei': '路明非',
+      'lumingfei': '路明非',
+      'chu_zihang': '楚子航',
+      'chuzihang': '楚子航',
+      'kaisa': '恺撒',
+      'caesar': '恺撒',
+      'nuonuo': '诺诺',
+      'chen_motong': '陈墨瞳',
+      'fenjier': '芬格尔',
+      'finger': '芬格尔',
+      'angre': '昂热',
+      'anger': '昂热',
+      'xia_mi': '夏弥',
+      'xiami': '夏弥',
+      'ling': '零',
+      'yuan_zhisheng': '源稚生',
+      'yuanzhisheng': '源稚生',
+      'yuan_zhinv': '源稚女',
+      'yuanzhinv': '源稚女',
+      'huiliyi': '绘梨衣',
+      'herzog': '赫尔佐格',
+    };
+
+    // 先检查映射表
+    const lowerPinyin = (pinyinName || '').toLowerCase().replace(/[\s_-]/g, '');
+    if (pinyinMap[lowerPinyin]) {
+      return pinyinMap[lowerPinyin];
+    }
+
+    // 尝试从id中查找映射
+    const lowerId = (id || '').toLowerCase().replace(/[\s_-]/g, '');
+    if (pinyinMap[lowerId]) {
+      return pinyinMap[lowerId];
+    }
+
+    // 尝试从最近的文本中提取2-4个中文字符的名字
+    // 这是一个简单的启发式方法，可能不准确
+    if (recentText) {
+      // 搜索可能的名字模式（2-4个中文字符，前后有标点或空格）
+      const namePattern = /[，。！？、\s""''（）【】]([\u4e00-\u9fa5]{2,4})[，。！？、\s""''（）【】]/g;
+      let match;
+      const candidates = [];
+      while ((match = namePattern.exec(recentText)) !== null) {
+        candidates.push(match[1]);
+      }
+      // 如果找到候选名字，返回第一个（可能不准确，但比拼音好）
+      if (candidates.length > 0) {
+        console.log('从文本中提取到候选名字:', candidates, '，使用第一个:', candidates[0]);
+        return candidates[0];
+      }
+    }
+
+    // 如果都无法修复，返回带标记的名字
+    console.warn('无法修复拼音名字:', pinyinName, '，使用临时标识');
+    return '未知人物';
+  },
+
   // 从内容中移除PANEL_UPDATE部分
   stripPanelUpdate(content) {
     return content.replace(/【PANEL_UPDATE】[\s\S]*?【\/PANEL_UPDATE】/g, '').trim();
+  },
+
+  // 文本解析兜底函数：从AI返回的文本中提取状态更新提示
+  parseTextUpdates(content) {
+    const updates = {
+      status: {},
+      clues: [],
+      foreshadowing: [],
+      inventory: [],
+      relations: [],
+      quests: [],
+      worldNews: [],
+      reputation: [],
+      canonDeviation: null,
+      abilities: [],
+      environment: {}
+    };
+    let hasUpdates = false;
+
+    // 1. 解析【状态提示】精神-2，理智-3
+    const statusRegex = /【状态提示】([^\n]+)/g;
+    let statusMatch;
+    while ((statusMatch = statusRegex.exec(content)) !== null) {
+      const statusText = statusMatch[1];
+      // 解析健康、精神、体力、理智、失控值
+      const healthMatch = statusText.match(/健康[+\-]?(\d+)/);
+      const mentalMatch = statusText.match(/精神[+\-]?(\d+)/);
+      const staminaMatch = statusText.match(/体力[+\-]?(\d+)/);
+      const sanityMatch = statusText.match(/理智[+\-]?(\d+)/);
+      const dragonizationMatch = statusText.match(/失控(?:值)?[+\-]?(\d+)/);
+
+      if (healthMatch) { updates.status.health = parseInt(healthMatch[1]); hasUpdates = true; }
+      if (mentalMatch) { updates.status.mental = parseInt(mentalMatch[1]); hasUpdates = true; }
+      if (staminaMatch) { updates.status.stamina = parseInt(staminaMatch[1]); hasUpdates = true; }
+      if (sanityMatch) { updates.status.sanity = parseInt(sanityMatch[1]); hasUpdates = true; }
+      if (dragonizationMatch) { updates.status.dragonization = parseInt(dragonizationMatch[1]); hasUpdates = true; }
+    }
+
+    // 2. 解析【线索更新】"XXX"线索已记录，类型：人物线索，等级：关键
+    const clueRegex = /【线索更新】[""']?([^""'\n，]+)[""']?线索已记录[，,]?\s*类型[：:]\s*(\S+)[，,]?\s*等级[：:]\s*(\S+)/g;
+    let clueMatch;
+    while ((clueMatch = clueRegex.exec(content)) !== null) {
+      const clueName = clueMatch[1].trim();
+      const clueTypeText = clueMatch[2].trim();
+      const clueLevel = clueMatch[3].trim();
+
+      // 转换类型
+      let clueType = 'environment';
+      if (clueTypeText.includes('人物')) clueType = 'character';
+      else if (clueTypeText.includes('遗迹')) clueType = 'relic';
+      else if (clueTypeText.includes('残缺')) clueType = 'fragment';
+
+      // 转换等级
+      let level = '普通';
+      if (clueLevel.includes('关键')) level = '关键';
+      else if (clueLevel.includes('重要')) level = '重要';
+
+      updates.clues.push({
+        action: 'add',
+        id: 'clue_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+        name: clueName,
+        type: clueType,
+        level: level,
+        description: clueName + '（通过文本解析自动添加）',
+        status: '已记录'
+      });
+      hasUpdates = true;
+    }
+
+    // 3. 解析【伏笔追踪】新增一条隐藏剧情伏笔——XXX
+    const foreshadowRegex = /【伏笔追踪】新增[^\n]*[——\-]\s*([^\n]+)/g;
+    let foreshadowMatch;
+    while ((foreshadowMatch = foreshadowRegex.exec(content)) !== null) {
+      const foreshadowContent = foreshadowMatch[1].trim();
+      updates.foreshadowing.push({
+        action: 'add',
+        title: foreshadowContent,
+        description: foreshadowContent + '（通过文本解析自动添加）',
+        status: '未激活',
+        type: 'hidden',
+        importance: '中'
+      });
+      hasUpdates = true;
+    }
+
+    // 4. 解析【物品获得】获得XXX 或 【拾取成功】XXX
+    const itemRegex = /【(?:物品获得|拾取成功|获得物品)】[：:]?\s*([^\n]+)/g;
+    let itemMatch;
+    while ((itemMatch = itemRegex.exec(content)) !== null) {
+      const itemText = itemMatch[1].trim();
+      // 简单解析物品名称
+      const itemName = itemText.split(/[，,、]/)[0].trim();
+      updates.inventory.push({
+        action: 'add',
+        id: 'item_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+        name: itemName,
+        category: '杂物',
+        description: itemText + '（通过文本解析自动添加）',
+        quantity: 1,
+        carry: true
+      });
+      hasUpdates = true;
+    }
+
+    // 5. 解析【关系变化】与XXX的关系发生变化
+    const relationRegex = /【关系变化】与\s*([^\s，,\n]+)\s*的?关系(?:发生)?(?:变化|变动)[，,]?\s*([^\n]*)/g;
+    let relationMatch;
+    while ((relationMatch = relationRegex.exec(content)) !== null) {
+      const npcName = relationMatch[1].trim();
+      const changeText = relationMatch[2].trim();
+      updates.relations.push({
+        action: 'update',
+        name: npcName,
+        note: changeText || '关系发生变化（通过文本解析自动更新）'
+      });
+      hasUpdates = true;
+    }
+
+    // 6. 解析【任务更新】XXX
+    const questRegex = /【任务更新】([^\n]+)/g;
+    let questMatch;
+    while ((questMatch = questRegex.exec(content)) !== null) {
+      const questText = questMatch[1].trim();
+      updates.quests.push({
+        action: 'update',
+        name: questText,
+        note: '任务更新（通过文本解析自动添加）'
+      });
+      hasUpdates = true;
+    }
+
+    // 7. 解析【世界消息】XXX
+    const worldNewsRegex = /【世界消息】([^\n]+)/g;
+    let worldNewsMatch;
+    while ((worldNewsMatch = worldNewsRegex.exec(content)) !== null) {
+      const newsText = worldNewsMatch[1].trim();
+      updates.worldNews.push({
+        action: 'add',
+        id: 'news_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+        title: newsText,
+        content: newsText,
+        time: '刚刚',
+        type: '普通'
+      });
+      hasUpdates = true;
+    }
+
+    // 8. 解析【声望变动】XXX
+    const reputationRegex = /【声望变动】([^\n]+)/g;
+    let reputationMatch;
+    while ((reputationMatch = reputationRegex.exec(content)) !== null) {
+      const repText = reputationMatch[1].trim();
+      updates.reputation.push({
+        action: 'update',
+        org: repText,
+        note: '声望变动（通过文本解析自动更新）'
+      });
+      hasUpdates = true;
+    }
+
+    // 9. 解析【世界线自检】XXX
+    const canonDeviationRegex = /【世界线自检】([^\n]+)/g;
+    let canonDeviationMatch;
+    while ((canonDeviationMatch = canonDeviationRegex.exec(content)) !== null) {
+      const deviationText = canonDeviationMatch[1].trim();
+      updates.canonDeviation = {
+        action: 'add',
+        id: 'deviation_' + Date.now(),
+        description: deviationText,
+        level: '微小偏差'
+      };
+      hasUpdates = true;
+    }
+
+    if (!hasUpdates) return null;
+    return updates;
   },
 
   // 执行PANEL_UPDATE指令
@@ -842,7 +1124,16 @@ const App = {
     if (panelData.relations && Array.isArray(panelData.relations)) {
       for (const rel of panelData.relations) {
         // 确保name字段存在，如果缺失则使用id
-        const relationName = rel.name || rel.id || '未知人物';
+        let relationName = rel.name || rel.id || '未知人物';
+
+        // 名字校验：如果name是拼音（全小写字母，没有中文字符），尝试修复
+        if (relationName && /^[a-z_]+$/.test(relationName) && !/[\u4e00-\u9fa5]/.test(relationName)) {
+          console.warn('检测到拼音名字:', relationName, '，尝试修复');
+          // 尝试从id中提取并转换（简单处理：下划线转空格，首字母大写）
+          // 但更好的方式是标记为需要修复，使用id作为临时显示
+          relationName = this.fixPinyinName(relationName, rel.id);
+        }
+
         const existingRelation = GameState.getRelation(rel.id);
 
         if (rel.action === 'update') {
@@ -1218,10 +1509,17 @@ const App = {
       const content = await AIService.generateNarrative(worldState, playerAction, previousContext, settings);
 
       // 解析并执行四大板块自动更新
-      const panelData = this.parsePanelUpdate(content);
+      let panelData = this.parsePanelUpdate(content);
       const cleanContent = this.stripPanelUpdate(content);
       if (panelData) {
         this.executePanelUpdate(panelData);
+      } else {
+        // 兜底：如果没有PANEL_UPDATE，从文本中解析状态更新提示
+        const textUpdates = this.parseTextUpdates(cleanContent);
+        if (textUpdates) {
+          this.executePanelUpdate(textUpdates);
+          console.log('通过文本解析兜底更新了板块状态');
+        }
       }
 
       // 解析选项
@@ -1295,10 +1593,17 @@ const App = {
       const content = await AIService.generateNarrative(worldState, action, previousContext, settings);
 
       // 解析并执行四大板块自动更新
-      const panelData = this.parsePanelUpdate(content);
+      let panelData = this.parsePanelUpdate(content);
       const cleanContent = this.stripPanelUpdate(content);
       if (panelData) {
         this.executePanelUpdate(panelData);
+      } else {
+        // 兜底：如果没有PANEL_UPDATE，从文本中解析状态更新提示
+        const textUpdates = this.parseTextUpdates(cleanContent);
+        if (textUpdates) {
+          this.executePanelUpdate(textUpdates);
+          console.log('通过文本解析兜底更新了板块状态');
+        }
       }
 
       // 解析选项
@@ -1661,6 +1966,14 @@ const App = {
     return `剩余${hours}小时${minutes}分钟`;
   },
 
+  switchClueSubTab(subtab) {
+    this.currentClueSubTab = subtab;
+    document.querySelectorAll('.clue-sub-tab-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.clueSubtab === subtab);
+    });
+    this.renderClueList();
+  },
+
   renderClueList() {
     const list = document.getElementById('clue-list');
     const clues = GameState.state.clues;
@@ -1677,9 +1990,23 @@ const App = {
       fragment: { name: '残缺线索', icon: '🧩' },
     };
 
+    // 根据当前子标签筛选线索
+    let filteredClues = clues;
+    if (this.currentClueSubTab !== 'all') {
+      filteredClues = clues.filter(c => c.type === this.currentClueSubTab);
+    }
+
+    if (filteredClues.length === 0) {
+      list.innerHTML = '<div class="list-empty">该分类暂无线索记录</div>';
+      return;
+    }
+
     let html = '';
     for (const type of typeOrder) {
-      const typeClues = clues.filter(c => c.type === type);
+      // 如果选择了特定子标签，只显示该分类
+      if (this.currentClueSubTab !== 'all' && this.currentClueSubTab !== type) continue;
+
+      const typeClues = filteredClues.filter(c => c.type === type);
       if (typeClues.length === 0) continue;
 
       const typeInfo = typeNames[type];
@@ -1991,20 +2318,25 @@ const App = {
       '已作废': 'invalid',
       '高危暗线': 'danger'
     };
-    list.innerHTML = foreshadowing.slice().reverse().map(f => `
+    list.innerHTML = foreshadowing.slice().reverse().map(f => {
+      // 兼容旧数据：如果title和description为空，但有content字段，就使用content字段
+      const title = f.title || f.content || '未命名伏笔';
+      const description = f.description || f.content || '暂无描述';
+      return `
       <div class="foreshadow-item status-${statusClassMap[f.status] || 'inactive'}">
         <div class="foreshadow-header">
-          <span class="foreshadow-title">${this.escapeHtml(f.title)}</span>
+          <span class="foreshadow-title">${this.escapeHtml(title)}</span>
           <span class="foreshadow-status">${this.escapeHtml(f.status)}</span>
         </div>
-        <div class="foreshadow-desc">${this.escapeHtml(f.description)}</div>
+        <div class="foreshadow-desc">${this.escapeHtml(description)}</div>
         <div class="foreshadow-meta">
           ${f.relatedNPC ? `<span>关联：${this.escapeHtml(f.relatedNPC)}</span>` : ''}
           <span>时间：${this.escapeHtml(f.time)}</span>
         </div>
         ${f.triggerCondition ? `<div class="foreshadow-trigger">触发条件：${this.escapeHtml(f.triggerCondition)}</div>` : ''}
       </div>
-    `).join('');
+    `;
+    }).join('');
   },
 
   getButterflyDesc(level) {

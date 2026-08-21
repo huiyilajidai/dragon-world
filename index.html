@@ -265,7 +265,7 @@
           </div>
           <div class="status-version">
             <span>龙族开放世界 RPG</span>
-            <span>v4.1.9</span>
+            <span>v4.3.3</span>
           </div>
         </div>
 
@@ -327,6 +327,13 @@
                   <span class="legend-item"><span class="clue-level-dot important"></span>重要</span>
                   <span class="legend-item"><span class="clue-level-dot key"></span>关键</span>
                 </div>
+              </div>
+              <div class="clue-subtabs">
+                <button class="clue-sub-tab-btn active" data-clue-subtab="all" onclick="App.switchClueSubTab('all')">全部</button>
+                <button class="clue-sub-tab-btn" data-clue-subtab="environment" onclick="App.switchClueSubTab('environment')">环境线索</button>
+                <button class="clue-sub-tab-btn" data-clue-subtab="character" onclick="App.switchClueSubTab('character')">人物线索</button>
+                <button class="clue-sub-tab-btn" data-clue-subtab="relic" onclick="App.switchClueSubTab('relic')">遗迹线索</button>
+                <button class="clue-sub-tab-btn" data-clue-subtab="fragment" onclick="App.switchClueSubTab('fragment')">残缺线索</button>
               </div>
               <div id="clue-list" class="clue-list"></div>
             </div>
@@ -516,7 +523,7 @@
         <div class="version-info-box">
           <div class="version-row">
             <span>当前版本</span>
-            <span class="version-number" id="current-version-display">v4.1.9</span>
+            <span class="version-number" id="current-version-display">v4.3.3</span>
           </div>
           <div class="version-row">
             <span>最新版本</span>

@@ -743,6 +743,35 @@ body {
 .clue-level-dot.important { background: #E0B45A; }
 .clue-level-dot.key { background: #C05F55; }
 
+.clue-subtabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--bg-secondary);
+}
+.clue-sub-tab-btn {
+  padding: 5px 12px;
+  font-size: 12px;
+  border: 1px solid var(--bg-secondary);
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  border-radius: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+.clue-sub-tab-btn:hover {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+.clue-sub-tab-btn.active {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+  border-color: transparent;
+}
+
 .clue-list { display: flex; flex-direction: column; gap: 16px; }
 .clue-category { margin-bottom: 8px; }
 .clue-category-title {
