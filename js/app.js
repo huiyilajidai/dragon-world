@@ -18,10 +18,44 @@ const App = {
   isLoggedIn: false,
 
   // 版本号常量
-  APP_VERSION: 'v4.3.3',
+  APP_VERSION: 'v4.3.6',
 
   // 更新日志数据
   CHANGELOG: [
+    {
+      version: 'v4.3.6',
+      date: '2026-08-21',
+      changes: [
+        '对话栏快捷按键将任务与线索替换为世界与势力',
+        '关系与势力发生变动时在快捷按键显示红点，并弹窗显示变动信息',
+        '更新弹窗显示时间为3秒，之后逐渐淡出消失',
+        '点击关系或势力快捷按键时隐藏对应红点',
+        '删除关系与任务的旧弹窗与红点显示机制，统一使用新的弹窗系统'
+      ]
+    },
+    {
+      version: 'v4.3.5',
+      date: '2026-08-21',
+      changes: [
+        '修复剧情生成失败错误：null is not an object (evaluating document.getElementById(status-quest).textContent)',
+        'v4.3.4删除任务板块后，updateStatusPanel函数仍尝试更新已删除的status-quest元素导致报错',
+        '移除updateStatusPanel中对status-quest元素的引用',
+        '给renderQuestList和renderClueList函数添加空值检查，防止元素不存在时报错'
+      ]
+    },
+    {
+      version: 'v4.3.4',
+      date: '2026-08-21',
+      changes: [
+        '删除线索与任务板块，以后只在文中提示',
+        '新增背包板块高灵敏度判定规则：强化拾取识别、区分三类物品、搜查逻辑细则、校验防漏机制',
+        '状态栏时间与对话栏时间每轮对话实时更新，完善advanceTime函数支持实际时间推进',
+        '取消伏笔追踪的文字解析，只能通过PANEL_UPDATE更新，明确伏笔追踪核心定义与收录内容',
+        'AI每轮检索对话，发生原著偏差时同步更新世界-原著偏差，并标注偏差后果与回归原著方法',
+        '言灵觉醒同步：角色创建时未觉醒的言灵，后续剧情觉醒时同步状态栏言灵显示',
+        '默认激活标签改为关系板块'
+      ]
+    },
     {
       version: 'v4.3.3',
       date: '2026-08-21',
@@ -842,21 +876,8 @@ const App = {
       hasUpdates = true;
     }
 
-    // 3. 解析【伏笔追踪】新增一条隐藏剧情伏笔——XXX
-    const foreshadowRegex = /【伏笔追踪】新增[^\n]*[——\-]\s*([^\n]+)/g;
-    let foreshadowMatch;
-    while ((foreshadowMatch = foreshadowRegex.exec(content)) !== null) {
-      const foreshadowContent = foreshadowMatch[1].trim();
-      updates.foreshadowing.push({
-        action: 'add',
-        title: foreshadowContent,
-        description: foreshadowContent + '（通过文本解析自动添加）',
-        status: '未激活',
-        type: 'hidden',
-        importance: '中'
-      });
-      hasUpdates = true;
-    }
+    // 3. 伏笔追踪：取消文字解析，只能通过PANEL_UPDATE更新
+    // （已移除伏笔追踪的文字解析逻辑）
 
     // 4. 解析【物品获得】获得XXX 或 【拾取成功】XXX
     const itemRegex = /【(?:物品获得|拾取成功|获得物品)】[：:]?\s*([^\n]+)/g;
@@ -1056,6 +1077,19 @@ const App = {
             }
             if (ability.level) existing.level = ability.level;
             updates.abilities = true;
+          }
+        }
+
+        // 言灵觉醒同步：如果是言灵能力且标记为觉醒，更新状态栏言灵显示
+        if (ability.category === '言灵' || ability.yanlingAwaken || ability.isYanling) {
+          if (ability.name && p.yanling === '未觉醒') {
+            p.yanling = ability.name;
+            updates.abilities = true;
+            console.log('言灵觉醒：', ability.name);
+          } else if (ability.name && p.yanling && p.yanling.startsWith('未觉醒')) {
+            p.yanling = ability.name;
+            updates.abilities = true;
+            console.log('言灵觉醒：', ability.name);
           }
         }
       }
@@ -1264,6 +1298,20 @@ const App = {
       });
     }
 
+    // 关系变动：显示红点和专门弹窗
+    if (updates.relation) {
+      this.showQuickBtnDot('relation', true);
+      const relationMsg = updateMessages.find(m => m.includes('关系')) || '【关系变动】人物关系发生变化';
+      this.showUpdatePopup('relation', relationMsg);
+    }
+
+    // 势力变动：显示红点和专门弹窗
+    if (updates.reputation) {
+      this.showQuickBtnDot('faction', true);
+      const factionMsg = updateMessages.find(m => m.includes('声望')) || '【势力变动】组织声望发生变化';
+      this.showUpdatePopup('faction', factionMsg);
+    }
+
     // 刷新所有有变动的板块
     if (updates.status || updates.environment) this.updateStatusPanel();
     if (updates.abilities) this.updatePanelContent('ability');
@@ -1278,6 +1326,83 @@ const App = {
     this.updateRedDots();
 
     return updates;
+  },
+
+  // 显示/隐藏快捷按键上的红点
+  showQuickBtnDot(type, show) {
+    const dot = document.getElementById('dot-' + type);
+    if (dot) {
+      dot.style.display = show ? 'block' : 'none';
+    }
+  },
+
+  // 显示更新弹窗（3秒后淡出）
+  showUpdatePopup(type, message) {
+    // 创建弹窗元素
+    const popup = document.createElement('div');
+    popup.className = 'update-popup update-popup-' + type;
+
+    // 根据类型设置图标和颜色
+    let icon = '📋';
+    let color = '#1890ff';
+    if (type === 'relation') {
+      icon = '👥';
+      color = '#722ed1';
+    } else if (type === 'faction') {
+      icon = '🏛️';
+      color = '#fa8c16';
+    }
+
+    popup.style.cssText = `
+      position: fixed;
+      top: 80px;
+      right: 20px;
+      z-index: 9999;
+      background: #fff;
+      border-left: 4px solid ${color};
+      border-radius: 8px;
+      padding: 12px 18px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      max-width: 280px;
+      animation: updatePopupSlideIn 0.3s ease-out;
+    `;
+
+    popup.innerHTML = `
+      <span style="font-size: 20px;">${icon}</span>
+      <span style="font-size: 13px; color: #333; line-height: 1.4;">${this.escapeHtml(message)}</span>
+    `;
+
+    // 添加动画样式
+    if (!document.getElementById('update-popup-style')) {
+      const style = document.createElement('style');
+      style.id = 'update-popup-style';
+      style.textContent = `
+        @keyframes updatePopupSlideIn {
+          0% { transform: translateX(120%); opacity: 0; }
+          100% { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes updatePopupFadeOut {
+          0% { opacity: 1; transform: translateX(0); }
+          100% { opacity: 0; transform: translateX(120%); }
+        }
+      `;
+      document.head.appendChild(style);
+    }
+
+    document.body.appendChild(popup);
+
+    // 3秒后淡出
+    setTimeout(() => {
+      popup.style.animation = 'updatePopupFadeOut 0.5s ease-out forwards';
+      setTimeout(() => {
+        if (popup.parentNode) {
+          popup.parentNode.removeChild(popup);
+        }
+      }, 500);
+    }, 3000);
   },
 
   // 数值崩坏自动检查
@@ -1358,8 +1483,9 @@ const App = {
     document.getElementById('status-exposure').textContent = w.exposureLevel;
     document.getElementById('status-money').textContent = '¥' + (p.money || 0);
 
-    const currentQuest = GameState.state.quests.find(q => q.status === 'active');
-    document.getElementById('status-quest').textContent = currentQuest ? currentQuest.title : '无';
+    // 任务板块已删除，不再更新status-quest
+    // const currentQuest = GameState.state.quests.find(q => q.status === 'active');
+    // document.getElementById('status-quest').textContent = currentQuest ? currentQuest.title : '无';
 
     document.getElementById('bar-health').style.width = p.health + '%';
     document.getElementById('bar-mental').style.width = p.mental + '%';
@@ -1532,6 +1658,9 @@ const App = {
       if (decision) {
         GameState.setDecision(decision);
       }
+
+      // 推进时间
+      GameState.advanceTime(15);
 
       this.renderNarrative();
       this.renderChoice();
@@ -1712,7 +1841,9 @@ const App = {
       '背包': 'inventory',
       '能力': 'ability',
       '组织': 'faction',
+      '势力': 'faction',
       '世界消息': 'world',
+      '世界': 'world',
       '原著偏差': 'world',
       '伏笔': 'world',
       '秘密': 'world',
@@ -1721,7 +1852,7 @@ const App = {
 
     const tab = tabMap[cmd];
     const isMobile = window.innerWidth <= 768;
-    
+
     // 状态 - 手机端展开左侧抽屉，电脑端在剧情区显示
     if (cmd === '状态') {
       if (isMobile) {
@@ -1735,10 +1866,13 @@ const App = {
       }
       return;
     }
-    
+
     // 其他 - 手机端展开右侧抽屉，电脑端只切换标签
     if (tab) {
       this.switchTab(tab);
+      // 点击关系或势力按键时隐藏对应的红点
+      if (tab === 'relation') this.showQuickBtnDot('relation', false);
+      if (tab === 'faction') this.showQuickBtnDot('faction', false);
       if (isMobile) {
         this.openRightDrawer();
       }
@@ -1855,6 +1989,7 @@ const App = {
 
   renderQuestList() {
     const list = document.getElementById('quest-list');
+    if (!list) return; // 任务板块已删除，元素不存在时直接返回
     const quests = GameState.state.quests;
     if (!quests || quests.length === 0) {
       list.innerHTML = '<div class="list-empty">暂无任务</div>';
@@ -1976,6 +2111,7 @@ const App = {
 
   renderClueList() {
     const list = document.getElementById('clue-list');
+    if (!list) return; // 线索板块已删除，元素不存在时直接返回
     const clues = GameState.state.clues;
     if (!clues || clues.length === 0) {
       list.innerHTML = '<div class="list-empty">暂无线索记录</div>';
@@ -2085,6 +2221,194 @@ const App = {
         </div>
       `;
     }).join('');
+  },
+
+  // 背包更新检查：后台校验，把刚才剧情中获得的物品同步更新到背包
+  checkInventoryUpdate() {
+    try {
+      // 获取最近的剧情文本
+      const narratives = GameState.state.narratives || [];
+      if (narratives.length === 0) {
+        this.showInventoryCheckResult(false, '暂无剧情记录');
+        return;
+      }
+
+      // 取最近5条剧情文本
+      const recentText = narratives.slice(-5).map(n => n.content || '').join('\n');
+
+      // 解析剧情中提到的获得物品
+      const itemsToAdd = this.parseItemsFromText(recentText);
+
+      if (itemsToAdd.length === 0) {
+        this.showInventoryCheckResult(false, '未检测到新物品');
+        return;
+      }
+
+      // 检查这些物品是否已经在背包中
+      const inventory = GameState.state.player.inventory;
+      const carriedItems = (inventory.carried || []).map(item => item.name);
+      const uncurriedItems = (inventory.uncurried || []).map(item => item.name);
+      const existingItems = [...carriedItems, ...uncurriedItems];
+      const newItems = itemsToAdd.filter(item => !existingItems.includes(item.name));
+
+      if (newItems.length === 0) {
+        this.showInventoryCheckResult(true, '所有物品已在背包中');
+        return;
+      }
+
+      // 添加新物品到背包
+      let addedCount = 0;
+      for (const item of newItems) {
+        GameState.addItem(item, true);
+        addedCount++;
+      }
+
+      // 刷新背包显示
+      this.renderInventoryList();
+      this.updatePanelContent('inventory');
+
+      // 显示成功结果
+      this.showInventoryCheckResult(true, `成功同步 ${addedCount} 件物品`);
+
+    } catch (e) {
+      console.error('背包更新检查失败:', e);
+      this.showInventoryCheckResult(false, '检查失败：' + e.message);
+    }
+  },
+
+  // 从文本中解析获得的物品
+  parseItemsFromText(text) {
+    const items = [];
+    if (!text) return items;
+
+    // 匹配常见的物品获得模式
+    const patterns = [
+      /【拾取成功】[：:]?\s*([^\n，。！？]+)/g,
+      /【获得物品】[：:]?\s*([^\n，。！？]+)/g,
+      /【物品获得】[：:]?\s*([^\n，。！？]+)/g,
+      /获得[了到]?\s*([^\n，。！？、]+?)(?:[，。！？\n]|$)/g,
+      /拾取[了到]?\s*([^\n，。！？、]+?)(?:[，。！？\n]|$)/g,
+      /捡起[了]?\s*([^\n，。！？、]+?)(?:[，。！？\n]|$)/g,
+      /拿到[了]?\s*([^\n，。！？、]+?)(?:[，。！？\n]|$)/g,
+      /搜出[了]?\s*([^\n，。！？、]+?)(?:[，。！？\n]|$)/g,
+      /翻出[了]?\s*([^\n，。！？、]+?)(?:[，。！？\n]|$)/g,
+      /缴获[了]?\s*([^\n，。！？、]+?)(?:[，。！？\n]|$)/g,
+    ];
+
+    for (const pattern of patterns) {
+      let match;
+      while ((match = pattern.exec(text)) !== null) {
+        const itemName = match[1].trim();
+        // 过滤掉太短或明显不是物品的内容
+        if (itemName.length >= 2 && itemName.length <= 30 && !items.find(i => i.name === itemName)) {
+          // 判断物品类型
+          let category = '杂物';
+          let isQuestItem = false;
+
+          if (/钥匙|碎片|手记|档案|身份卡|通行证|信物/.test(itemName)) {
+            category = '任务道具';
+            isQuestItem = true;
+          } else if (/枪|刀|剑|武器|护腕|护甲|装备/.test(itemName)) {
+            category = '装备';
+          } else if (/绷带|药剂|药水|营养棒|子弹|弹药|手雷/.test(itemName)) {
+            category = '消耗品';
+          }
+
+          items.push({
+            id: 'item_check_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+            name: itemName,
+            category: category,
+            description: itemName + '（通过更新检查自动添加）',
+            quantity: 1,
+            carry: true,
+            questItem: isQuestItem,
+            canDiscard: !isQuestItem
+          });
+        }
+      }
+    }
+
+    return items;
+  },
+
+  // 显示背包更新检查结果（绿色对号/红色叉号弹窗）
+  showInventoryCheckResult(success, message) {
+    // 创建弹窗元素
+    const modal = document.createElement('div');
+    modal.className = 'inventory-check-modal';
+    modal.style.cssText = `
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 10000;
+      background: ${success ? '#fff' : '#fff'};
+      border-radius: 16px;
+      padding: 30px 40px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+      text-align: center;
+      animation: inventoryCheckPop 0.3s ease-out;
+      min-width: 200px;
+    `;
+
+    // 图标
+    const icon = document.createElement('div');
+    icon.style.cssText = `
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      background: ${success ? 'linear-gradient(135deg, #52c41a, #389e0d)' : 'linear-gradient(135deg, #ff4d4f, #cf1322)'};
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 15px;
+      font-size: 32px;
+      color: #fff;
+      font-weight: bold;
+    `;
+    icon.textContent = success ? '✓' : '✕';
+
+    // 消息
+    const msg = document.createElement('div');
+    msg.style.cssText = `
+      font-size: 14px;
+      color: #333;
+      font-weight: 500;
+    `;
+    msg.textContent = message;
+
+    modal.appendChild(icon);
+    modal.appendChild(msg);
+
+    // 添加动画样式
+    if (!document.getElementById('inventory-check-style')) {
+      const style = document.createElement('style');
+      style.id = 'inventory-check-style';
+      style.textContent = `
+        @keyframes inventoryCheckPop {
+          0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
+          50% { transform: translate(-50%, -50%) scale(1.1); }
+          100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        }
+        @keyframes inventoryCheckFadeOut {
+          0% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+          100% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+        }
+      `;
+      document.head.appendChild(style);
+    }
+
+    document.body.appendChild(modal);
+
+    // 3秒后淡出
+    setTimeout(() => {
+      modal.style.animation = 'inventoryCheckFadeOut 0.5s ease-out forwards';
+      setTimeout(() => {
+        if (modal.parentNode) {
+          modal.parentNode.removeChild(modal);
+        }
+      }, 500);
+    }, 2500);
   },
 
   renderInventoryList() {

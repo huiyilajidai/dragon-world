@@ -265,7 +265,7 @@
           </div>
           <div class="status-version">
             <span>龙族开放世界 RPG</span>
-            <span>v4.3.3</span>
+            <span>v4.3.6</span>
           </div>
         </div>
 
@@ -281,11 +281,11 @@
           <div class="input-area">
             <div class="quick-commands" id="quick-commands">
               <button class="quick-btn" onclick="App.quickQuery('状态')">状态</button>
-              <button class="quick-btn" onclick="App.quickQuery('关系')">关系</button>
-              <button class="quick-btn" onclick="App.quickQuery('任务')">任务</button>
-              <button class="quick-btn" onclick="App.quickQuery('线索')">线索</button>
+              <button class="quick-btn" id="quick-btn-relation" onclick="App.quickQuery('关系')">关系<span class="quick-btn-dot" id="dot-relation" style="display:none;"></span></button>
               <button class="quick-btn" onclick="App.quickQuery('背包')">背包</button>
               <button class="quick-btn" onclick="App.quickQuery('能力')">能力</button>
+              <button class="quick-btn" id="quick-btn-faction" onclick="App.quickQuery('势力')">势力<span class="quick-btn-dot" id="dot-faction" style="display:none;"></span></button>
+              <button class="quick-btn" onclick="App.quickQuery('世界')">世界</button>
               <button class="quick-btn" onclick="App.quickQuery('存档')">存档</button>
             </div>
             <div class="input-row">
@@ -299,9 +299,7 @@
         <div class="right-panel" id="right-panel">
           <button class="drawer-close" onclick="App.closeAllDrawers()">×</button>
           <div class="panel-tabs">
-            <button class="tab-btn active" data-tab="quest" onclick="App.switchTab('quest')">任务</button>
-            <button class="tab-btn" data-tab="clue" onclick="App.switchTab('clue')">线索</button>
-            <button class="tab-btn" data-tab="relation" onclick="App.switchTab('relation')">关系</button>
+            <button class="tab-btn active" data-tab="relation" onclick="App.switchTab('relation')">关系</button>
             <button class="tab-btn" data-tab="inventory" onclick="App.switchTab('inventory')">背包</button>
             <button class="tab-btn" data-tab="ability" onclick="App.switchTab('ability')">能力</button>
             <button class="tab-btn" data-tab="faction" onclick="App.switchTab('faction')">势力</button>
@@ -309,35 +307,7 @@
             <button class="tab-btn" data-tab="save" onclick="App.switchTab('save')">存档</button>
           </div>
           <div class="tab-content">
-            <div class="tab-pane active" data-tab="quest">
-              <div class="current-quest-box">
-                <div class="current-quest-header">
-                  <span class="current-quest-title">当前任务</span>
-                </div>
-                <div id="status-quest" class="current-quest-content">-</div>
-              </div>
-              <h4>任务列表</h4>
-              <div id="quest-list" class="quest-list"></div>
-            </div>
-            <div class="tab-pane" data-tab="clue">
-              <div class="clue-header">
-                <h4>线索记录</h4>
-                <div class="clue-legend">
-                  <span class="legend-item"><span class="clue-level-dot normal"></span>普通</span>
-                  <span class="legend-item"><span class="clue-level-dot important"></span>重要</span>
-                  <span class="legend-item"><span class="clue-level-dot key"></span>关键</span>
-                </div>
-              </div>
-              <div class="clue-subtabs">
-                <button class="clue-sub-tab-btn active" data-clue-subtab="all" onclick="App.switchClueSubTab('all')">全部</button>
-                <button class="clue-sub-tab-btn" data-clue-subtab="environment" onclick="App.switchClueSubTab('environment')">环境线索</button>
-                <button class="clue-sub-tab-btn" data-clue-subtab="character" onclick="App.switchClueSubTab('character')">人物线索</button>
-                <button class="clue-sub-tab-btn" data-clue-subtab="relic" onclick="App.switchClueSubTab('relic')">遗迹线索</button>
-                <button class="clue-sub-tab-btn" data-clue-subtab="fragment" onclick="App.switchClueSubTab('fragment')">残缺线索</button>
-              </div>
-              <div id="clue-list" class="clue-list"></div>
-            </div>
-            <div class="tab-pane" data-tab="relation">
+            <div class="tab-pane active" data-tab="relation">
               <div class="relation-header">
                 <h4>人物关系</h4>
                 <div class="relation-legend">
@@ -355,6 +325,7 @@
             <div class="tab-pane" data-tab="inventory">
               <div class="inventory-header">
                 <h4>背包</h4>
+                <button class="btn btn-small btn-primary" onclick="App.checkInventoryUpdate()" title="后台校验，把刚才剧情中获得的物品同步更新到背包">更新检查</button>
                 <div class="inventory-weight">
                   <span id="inventory-weight-text">0 / 22 kg</span>
                   <div class="weight-bar">
@@ -523,7 +494,7 @@
         <div class="version-info-box">
           <div class="version-row">
             <span>当前版本</span>
-            <span class="version-number" id="current-version-display">v4.3.3</span>
+            <span class="version-number" id="current-version-display">v4.3.6</span>
           </div>
           <div class="version-row">
             <span>最新版本</span>

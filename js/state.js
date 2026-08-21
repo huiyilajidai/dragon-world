@@ -211,10 +211,64 @@ const GameState = {
 
   // 时间推进
   advanceTime(minutes = 30) {
-    // 简单时间推进，实际可更复杂
-    const current = this.state.world.currentTime;
-    // 解析当前时间并推进
+    // 实际推进时间
     this.state.meta.turnCount++;
+
+    const current = this.state.world.currentTime;
+    // 解析当前时间格式：YYYY/MM/DD 时段
+    const match = current.match(/(\d{4})\/(\d{2})\/(\d{2})\s*(上午|下午|晚上|凌晨|中午)?/);
+    if (!match) {
+      // 如果格式不匹配，简单增加回合数不改变时间
+      return;
+    }
+
+    let [, year, month, day, period] = match;
+    year = parseInt(year);
+    month = parseInt(month);
+    day = parseInt(day);
+
+    // 将时段转换为小时
+    let hour = 12;
+    if (period === '凌晨') hour = 3;
+    else if (period === '上午') hour = 10;
+    else if (period === '中午') hour = 12;
+    else if (period === '下午') hour = 15;
+    else if (period === '晚上') hour = 20;
+
+    // 计算总分钟数
+    let totalMinutes = hour * 60 + minutes;
+
+    // 处理跨天
+    while (totalMinutes >= 24 * 60) {
+      totalMinutes -= 24 * 60;
+      day++;
+      // 处理跨月（简单处理，假设每月30天）
+      if (day > 30) {
+        day = 1;
+        month++;
+        if (month > 12) {
+          month = 1;
+          year++;
+        }
+      }
+    }
+
+    // 转换回小时和分钟
+    const newHour = Math.floor(totalMinutes / 60);
+    const newMinute = totalMinutes % 60;
+
+    // 确定时段
+    let newPeriod = '上午';
+    if (newHour >= 0 && newHour < 6) newPeriod = '凌晨';
+    else if (newHour >= 6 && newHour < 11) newPeriod = '上午';
+    else if (newHour >= 11 && newHour < 13) newPeriod = '中午';
+    else if (newHour >= 13 && newHour < 18) newPeriod = '下午';
+    else newPeriod = '晚上';
+
+    // 格式化时间
+    const formattedMonth = String(month).padStart(2, '0');
+    const formattedDay = String(day).padStart(2, '0');
+    this.state.world.currentTime = `${year}/${formattedMonth}/${formattedDay} ${newPeriod}`;
   },
 
   // 任务相关

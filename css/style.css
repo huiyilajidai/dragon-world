@@ -256,10 +256,17 @@ body {
 .inventory-header {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
   margin-bottom: 16px;
+  gap: 10px;
+  flex-wrap: wrap;
 }
-.inventory-header h4 { margin: 0; }
+.inventory-header h4 { margin: 0; margin-right: auto; }
+.inventory-header .btn-small {
+  padding: 4px 10px;
+  font-size: 11px;
+  white-space: nowrap;
+}
 .inventory-weight {
   text-align: right;
   font-size: 12px;
@@ -948,9 +955,24 @@ body {
 .quick-btn {
   padding: 4px 12px; font-size: 12px; border: 1px solid var(--bg-secondary);
   background: var(--bg-primary); color: var(--text-secondary); border-radius: 12px;
-  cursor: pointer; transition: all 0.2s;
+  cursor: pointer; transition: all 0.2s; position: relative;
 }
 .quick-btn:hover { border-color: var(--border-gold); color: var(--title-gold); background: rgba(224,180,90,0.08); }
+.quick-btn-dot {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 8px;
+  height: 8px;
+  background: #ff4d4f;
+  border-radius: 50%;
+  border: 1.5px solid #fff;
+  animation: dotPulse 1.5s ease-in-out infinite;
+}
+@keyframes dotPulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.2); opacity: 0.8; }
+}
 .input-row { display: flex; gap: 10px; }
 .input-row input {
   flex: 1; padding: 10px 16px; border: 1.5px solid var(--bg-secondary); border-radius: 8px;
