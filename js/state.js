@@ -700,6 +700,15 @@ const GameState = {
 
     // 更新立场标签
     if (updates.stance) {
+      // 确保relation.stance是数组格式（兼容旧存档的字符串格式）
+      if (!Array.isArray(relation.stance)) {
+        if (typeof relation.stance === 'string') {
+          relation.stance = relation.stance.split(/[,，、]/).map(s => s.trim()).filter(s => s);
+        } else {
+          relation.stance = ['陌生人'];
+        }
+      }
+
       if (Array.isArray(updates.stance)) {
         relation.stance = updates.stance;
       } else if (typeof updates.stance === 'string') {
